@@ -1,0 +1,12 @@
+# .NET build output
+bin/
+obj/
+*.user
+.vs/
+
+# macOS
+.DS_Store
+
+# editors
+.idea/
+*.swp

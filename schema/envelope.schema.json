@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auspicia.io/schema/engine-envelope-1.0.json",
+  "title": "Auspicia Engine Run Envelope",
+  "description": "A single submission to POST /v1/engine-runs: an envelope wrapping one optimizer run (a vector of signed per-name weights for one trading day, plus optional producer-declared parameters).",
+  "type": "object",
+  "required": ["producer", "run"],
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "default": "1.0",
+      "enum": ["1.0"],
+      "description": "Contract version. Only 1.0 is supported. Producer-declared parameters are additive within 1.0."
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Your dedup key; defaults to run.runId. Re-submitting the same key returns the stored run (deduped)."
+    },
+    "producer": {
+      "type": "object",
+      "required": ["engineKey"],
+      "additionalProperties": true,
+      "properties": {
+        "engineKey": { "type": "string", "description": "Must equal run.engineKey and match your token scope." },
+        "version": { "type": "string", "description": "Your engine build/version (for our logs)." }
+      }
+    },
+    "emittedAt": { "type": "string", "format": "date-time" },
+    "checksum": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Optional integrity hash. If present it MUST match the server's computation (see docs/CHECKSUM.md)."
+    },
+    "run": { "$ref": "#/$defs/run" }
+  },
+  "$defs": {
+    "run": {
+      "type": "object",
+      "required": ["runId", "engineKey", "kind", "asOf", "positions"],
+      "additionalProperties": true,
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "engineKey": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "enum": ["optimization", "research"] },
+        "economics": { "type": "string", "enum": ["implementation", "directional"] },
+        "modality": { "type": "string", "enum": ["gpu-batch", "gpu-rt", "streaming", "cpu"] },
+        "asOf": { "type": "string", "format": "date", "description": "Signal / trading day, YYYY-MM-DD." },
+        "universe": { "type": "string" },
+        "ccy": { "type": "string", "enum": ["USD", "ZAR"], "default": "USD" },
+        "substrate": { "type": "string" },
+        "solveMs": { "type": "integer", "minimum": 0 },
+        "attributesPerName": { "type": "integer", "minimum": 0 },
+        "parameterDefs": {
+          "type": "array",
+          "maxItems": 500,
+          "description": "Declares the per-name parameters this run carries. Optional — omit for a weights-only run.",
+          "items": { "$ref": "#/$defs/parameterDef" }
+        },
+        "positions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5000,
+          "items": { "$ref": "#/$defs/position" }
+        }
+      }
+    },
+    "parameterDef": {
+      "type": "object",
+      "required": ["key", "type"],
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+          "description": "Stable identifier used as the value key in positions[].params."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["number", "integer", "boolean", "string", "enum", "vector", "json"]
+        },
+        "unit": { "type": "string", "description": "e.g. 'bps', '%', 'z', 'score'." },
+        "dim": { "type": "integer", "minimum": 1, "description": "Vector length (required when type = vector)." },
+        "direction": {
+          "type": "string",
+          "enum": ["higher_better", "lower_better", "neutral"],
+          "description": "Ranking hint for the UI."
+        },
+        "label": { "type": "string", "description": "Human-friendly display name." },
+        "description": { "type": "string" },
+        "values": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Allowed values (required when type = enum)."
+        },
+        "range": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "[min, max] hint for numeric UIs."
+        }
+      },
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "vector" } } }, "then": { "required": ["dim"] } },
+        { "if": { "properties": { "type": { "const": "enum" } } }, "then": { "required": ["values"] } }
+      ]
+    },
+    "position": {
+      "type": "object",
+      "required": ["ticker", "weight"],
+      "additionalProperties": true,
+      "properties": {
+        "ticker": { "type": "string", "minLength": 1, "description": "Symbol; upper-cased on ingest." },
+        "weight": {
+          "type": "number",
+          "minimum": -100,
+          "maximum": 100,
+          "description": "Signed % of capital (+ long, − short). Finite; |weight| ≤ 100; Σ|weight| ≤ 500 across the run."
+        },
+        "side": { "type": "string", "enum": ["long", "short"], "description": "If given, must match the sign of weight." },
+        "score": { "type": "number", "minimum": -1, "maximum": 1 },
+        "rank": { "type": "integer", "minimum": 0 },
+        "figi": { "type": "string" },
+        "cik": { "type": "string" },
+        "attributes": { "type": "object", "description": "Freeform per-name metadata, stored verbatim (not typed/indexed)." },
+        "params": {
+          "type": "object",
+          "description": "Declared per-name parameter values. Every key MUST appear in run.parameterDefs.",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

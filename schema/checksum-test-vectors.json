@@ -1,0 +1,268 @@
+{
+  "_comment": "Reference vectors for the Auspicia engine-run integrity checksum. Generated from the canonical Python implementation. A conforming client MUST reproduce `canonical` and `checksum` exactly for each case. See docs/CHECKSUM.md for the algorithm.",
+  "algorithm": "sha256:' + lowercase_hex(SHA256(UTF8(canonical)))",
+  "cases": [
+    {
+      "name": "no-params-backward-compat",
+      "note": "A run with no parameterDefs hashes exactly as the pre-params era (positions only).",
+      "run": {
+        "runId": "vulkan-optimizer-2026-06-18",
+        "engineKey": "vulkan-optimizer",
+        "kind": "optimization",
+        "asOf": "2026-06-18",
+        "positions": [
+          {
+            "ticker": "AAPL",
+            "weight": 4.1,
+            "score": 0.62,
+            "rank": 1
+          },
+          {
+            "ticker": "NVDA",
+            "weight": -3.25,
+            "score": -0.48,
+            "rank": 2
+          }
+        ]
+      },
+      "canonical": "vulkan-optimizer-2026-06-18|2026-06-18|vulkan-optimizer|AAPL:4.100000|NVDA:-3.250000",
+      "checksum": "sha256:a68bb2f2d707dc77c78408862d97b3cc0c4c9b82b2fae5c3fb7bf1f5e84fd8df"
+    },
+    {
+      "name": "scalar-params-mixed-types",
+      "note": "number (6dp), integer, boolean (lowercase), enum (string). Sorted by (ticker, key).",
+      "run": {
+        "runId": "vulkan-optimizer-2026-06-18",
+        "engineKey": "vulkan-optimizer",
+        "kind": "optimization",
+        "asOf": "2026-06-18",
+        "parameterDefs": [
+          {
+            "key": "momentum",
+            "type": "number"
+          },
+          {
+            "key": "quality",
+            "type": "integer"
+          },
+          {
+            "key": "leveraged",
+            "type": "boolean"
+          },
+          {
+            "key": "regime",
+            "type": "enum",
+            "values": [
+              "risk_on",
+              "risk_off"
+            ]
+          }
+        ],
+        "positions": [
+          {
+            "ticker": "AAPL",
+            "weight": 4.1,
+            "params": {
+              "momentum": 0.732,
+              "quality": 8,
+              "leveraged": false,
+              "regime": "risk_on"
+            }
+          },
+          {
+            "ticker": "NVDA",
+            "weight": -3.25,
+            "params": {
+              "momentum": -0.11,
+              "quality": 3,
+              "leveraged": true,
+              "regime": "risk_off"
+            }
+          }
+        ]
+      },
+      "canonical": "vulkan-optimizer-2026-06-18|2026-06-18|vulkan-optimizer|AAPL:4.100000|NVDA:-3.250000|AAPL#leveraged=false|AAPL#momentum=0.732000|AAPL#quality=8|AAPL#regime=risk_on|NVDA#leveraged=true|NVDA#momentum=-0.110000|NVDA#quality=3|NVDA#regime=risk_off",
+      "checksum": "sha256:07716b3fb1dffbcf83ab9620976065219fd4e7cf0104cd0f1fcf8cfc1b5ab217"
+    },
+    {
+      "name": "number-precision-rounding",
+      "note": "Numbers are formatted to exactly 6 decimal places (round-half-to-even), like weights.",
+      "run": {
+        "runId": "r-precision",
+        "engineKey": "vulkan-optimizer",
+        "kind": "optimization",
+        "asOf": "2026-06-18",
+        "parameterDefs": [
+          {
+            "key": "sharpe",
+            "type": "number"
+          }
+        ],
+        "positions": [
+          {
+            "ticker": "AAPL",
+            "weight": 1.0,
+            "params": {
+              "sharpe": 1.234567891
+            }
+          },
+          {
+            "ticker": "MSFT",
+            "weight": 1.0,
+            "params": {
+              "sharpe": 42
+            }
+          }
+        ]
+      },
+      "canonical": "r-precision|2026-06-18|vulkan-optimizer|AAPL:1.000000|MSFT:1.000000|AAPL#sharpe=1.234568|MSFT#sharpe=42.000000",
+      "checksum": "sha256:3f1d6ec28770a00d54a8ae41420c2e4882bd512c9915cc720c6f3fdee55beeb3"
+    },
+    {
+      "name": "string-unicode-and-separators",
+      "note": "String/enum values are NFC-normalized then percent-encoded (RFC 3986). Reserved chars (| # = space) and non-ASCII become %XX so they can never corrupt the canonical string.",
+      "run": {
+        "runId": "r-strings",
+        "engineKey": "eng",
+        "kind": "optimization",
+        "asOf": "2026-06-18",
+        "parameterDefs": [
+          {
+            "key": "note",
+            "type": "string"
+          },
+          {
+            "key": "sector",
+            "type": "string"
+          }
+        ],
+        "positions": [
+          {
+            "ticker": "AAPL",
+            "weight": 1.0,
+            "params": {
+              "note": "a|b=c #1",
+              "sector": "Information Technology"
+            }
+          },
+          {
+            "ticker": "NSRGY",
+            "weight": 1.0,
+            "params": {
+              "note": "café",
+              "sector": "Consumer Staples"
+            }
+          }
+        ]
+      },
+      "canonical": "r-strings|2026-06-18|eng|AAPL:1.000000|NSRGY:1.000000|AAPL#note=a%7Cb%3Dc%20%231|AAPL#sector=Information%20Technology|NSRGY#note=caf%C3%A9|NSRGY#sector=Consumer%20Staples",
+      "checksum": "sha256:f60a0797f40f61183e5bcf67f59e87f288033564d2fe45f43bbc2a095e501d6a"
+    },
+    {
+      "name": "absent-and-null-params-omitted",
+      "note": "A param key that is absent, or explicitly null, contributes nothing to the checksum.",
+      "run": {
+        "runId": "r-sparse",
+        "engineKey": "eng",
+        "kind": "optimization",
+        "asOf": "2026-06-18",
+        "parameterDefs": [
+          {
+            "key": "a",
+            "type": "number"
+          },
+          {
+            "key": "b",
+            "type": "number"
+          }
+        ],
+        "positions": [
+          {
+            "ticker": "AAPL",
+            "weight": 1.0,
+            "params": {
+              "a": 1.5,
+              "b": null
+            }
+          },
+          {
+            "ticker": "MSFT",
+            "weight": 1.0,
+            "params": {
+              "a": 2.5
+            }
+          }
+        ]
+      },
+      "canonical": "r-sparse|2026-06-18|eng|AAPL:1.000000|MSFT:1.000000|AAPL#a=1.500000|MSFT#a=2.500000",
+      "checksum": "sha256:b7bc10ce45386267394fb117682f254324e52768ae727ff68b6ddd2b09b5d649"
+    },
+    {
+      "name": "vector-and-json-not-hashed-as-scalars",
+      "note": "vector folds as [v,v,...] at 6dp in array order (NOT sorted). json folds as compact sorted-key JSON, percent-encoded.",
+      "run": {
+        "runId": "r-vec",
+        "engineKey": "eng",
+        "kind": "optimization",
+        "asOf": "2026-06-18",
+        "parameterDefs": [
+          {
+            "key": "emb",
+            "type": "vector",
+            "dim": 3
+          },
+          {
+            "key": "meta",
+            "type": "json"
+          }
+        ],
+        "positions": [
+          {
+            "ticker": "AAPL",
+            "weight": 1.0,
+            "params": {
+              "emb": [
+                0.1,
+                0.2,
+                -0.05
+              ],
+              "meta": {
+                "b": 2,
+                "a": 1
+              }
+            }
+          }
+        ]
+      },
+      "canonical": "r-vec|2026-06-18|eng|AAPL:1.000000|AAPL#emb=[0.100000,0.200000,-0.050000]|AAPL#meta=%7B%22a%22%3A1%2C%22b%22%3A2%7D",
+      "checksum": "sha256:209bebeb39f5f6a3b66b8505187160a87825f6b4a5876bff56dca2ce00c12385"
+    },
+    {
+      "name": "coercion-nonnumeric-falls-back-to-string",
+      "note": "A non-numeric value for a numeric param folds as its percent-encoded string form on BOTH sides (the checksum still detects corruption; the server separately flags it).",
+      "run": {
+        "runId": "r-coerce",
+        "engineKey": "eng",
+        "kind": "optimization",
+        "asOf": "2026-06-18",
+        "parameterDefs": [
+          {
+            "key": "x",
+            "type": "number"
+          }
+        ],
+        "positions": [
+          {
+            "ticker": "AAPL",
+            "weight": 1.0,
+            "params": {
+              "x": "n/a"
+            }
+          }
+        ]
+      },
+      "canonical": "r-coerce|2026-06-18|eng|AAPL:1.000000|AAPL#x=n%2Fa",
+      "checksum": "sha256:097b79dba3cab41432f0352b354e3e2dc5f854aa85e651c48cbdbfd39d4e539e"
+    }
+  ]
+}
