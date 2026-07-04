@@ -201,7 +201,10 @@ Historical portfolio X-ray imports use a separate endpoint because they carry CS
 not daily optimizer signals:
 
 - `POST /xray/portfolios:bulk`
-- JSON body: `{ "portfolios": [{ "name", "source", "allocationsCsv", "performanceCsv", "investorPortfolioId" }] }`
+- Optional target discovery: `GET /orgs/ingestion-targets`
+- JSON body: `{ "targetOrgId": "lampshade", "portfolios": [{ "name", "source", "allocationsCsv", "performanceCsv", "investorPortfolioId" }] }`
+- Omit `targetOrgId` to use the authenticated identity's default org; when supplied, it must be top-level
+  for the whole bulk request.
 - Returns `201 Created` when all items import, or `207 Multi-Status` for partial success.
 - Per-item failures are returned as `{index, status, detail}`; retry only failed indexes after repair.
 - Analysis is started separately with `POST /xray/portfolios/{portfolioId}/analyses`.
@@ -209,6 +212,11 @@ not daily optimizer signals:
   `kind: "primary" | "nested"` for drawdown grouping.
 
 See [Portfolio X-ray ingestion](PORTFOLIO-XRAY-INGESTION.md) for the full request/response contract.
+
+Admin-triggered daily portfolio imports (`POST /imports/daily` and `POST /imports/daily/jobs`) use the
+same organization targeting convention: discover allowed orgs with `GET /orgs/ingestion-targets`, then send
+top-level `targetOrgId` next to the `portfolio`, `run`, `researchLimit`, and `force` fields. These admin
+routes are not engine-token routes.
 
 ---
 

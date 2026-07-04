@@ -55,8 +55,20 @@ public sealed class AuspiciaXrayClient : IDisposable
         IReadOnlyList<XrayPortfolioImport> portfolios,
         CancellationToken ct = default)
     {
+        return await BulkImportAsync(portfolios, targetOrgId: null, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Bulk-load historical allocation/performance CSVs for a specific server-authorized organization.
+    /// Pass a top-level targetOrgId only; per-item org targeting is rejected by the API.
+    /// </summary>
+    public async Task<XrayBulkImportResult> BulkImportAsync(
+        IReadOnlyList<XrayPortfolioImport> portfolios,
+        string? targetOrgId,
+        CancellationToken ct = default)
+    {
         if (portfolios is null) throw new ArgumentNullException(nameof(portfolios));
-        var body = new XrayBulkImportRequest { Portfolios = portfolios };
+        var body = new XrayBulkImportRequest { Portfolios = portfolios, TargetOrgId = targetOrgId };
         return await BulkImportAsync(body, ct).ConfigureAwait(false);
     }
 
@@ -72,6 +84,17 @@ public sealed class AuspiciaXrayClient : IDisposable
         using var resp = await SendAsync(HttpMethod.Post, "xray/portfolios:bulk", () => JsonContent(request), ct)
             .ConfigureAwait(false);
         return (await ReadAsync<XrayBulkImportResult>(resp, ct, 201, 207).ConfigureAwait(false))!;
+    }
+
+    /// <summary>
+    /// List organizations this authenticated API identity may target for X-ray/daily portfolio ingestion.
+    /// Use <see cref="XrayIngestionTargetsResult.DefaultOrgId"/> when you do not need to override the org.
+    /// </summary>
+    public async Task<XrayIngestionTargetsResult> ListIngestionTargetsAsync(CancellationToken ct = default)
+    {
+        using var resp = await SendAsync(HttpMethod.Get, "orgs/ingestion-targets", null, ct)
+            .ConfigureAwait(false);
+        return (await ReadAsync<XrayIngestionTargetsResult>(resp, ct, 200).ConfigureAwait(false))!;
     }
 
     /// <summary>Start an X-ray analysis job after a successful import. Defaults are server-side (topN=8).</summary>

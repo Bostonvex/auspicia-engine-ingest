@@ -97,6 +97,50 @@ public class XrayClientTests
     }
 
     [Fact]
+    public async Task BulkImport_sends_top_level_target_org()
+    {
+        var handler = new FakeHandler(Response(201, """{"imported":[],"errors":[],"count":0,"failed":0}"""));
+        using var client = Client(handler);
+
+        await client.BulkImportAsync(
+            new[]
+            {
+                new XrayPortfolioImport { Name = "LampShade", AllocationsCsv = "Date,AAPL\n2026-01-01,1\n" },
+            },
+            targetOrgId: "lampshade");
+
+        var req = handler.Requests.Single();
+        Assert.Contains("\"targetOrgId\":\"lampshade\"", req.Body);
+        Assert.DoesNotContain("\"portfolios\":[{\"targetOrgId\"", req.Body);
+    }
+
+    [Fact]
+    public async Task ListIngestionTargets_reads_allowed_orgs()
+    {
+        var handler = new FakeHandler(Response(200, """
+        {
+          "orgs": [
+            { "id": "auspicia", "displayName": "Auspicia", "status": "active", "role": "platform-admin" },
+            { "id": "lampshade", "displayName": "LampShade", "status": "active", "role": "org-admin" }
+          ],
+          "defaultOrgId": "auspicia"
+        }
+        """));
+        using var client = Client(handler);
+
+        var result = await client.ListIngestionTargetsAsync();
+
+        Assert.Equal("auspicia", result.DefaultOrgId);
+        Assert.Equal(2, result.Orgs.Count);
+        Assert.Equal("lampshade", result.Orgs[1].Id);
+        Assert.Equal("LampShade", result.Orgs[1].DisplayName);
+        var req = handler.Requests.Single();
+        Assert.Equal("GET", req.Method);
+        Assert.Equal("api/orgs/ingestion-targets", req.Path);
+        Assert.Equal("", req.Body);
+    }
+
+    [Fact]
     public async Task StartAnalysis_accepts_202()
     {
         var handler = new FakeHandler(Response(202, """

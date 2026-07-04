@@ -16,6 +16,23 @@ public sealed record XrayPortfolioImport
 public sealed record XrayBulkImportRequest
 {
     public required IReadOnlyList<XrayPortfolioImport> Portfolios { get; init; }
+    public string? TargetOrgId { get; init; }
+}
+
+/// <summary>Organization that the authenticated caller may target for ingestion.</summary>
+public sealed record XrayIngestionTargetOrg
+{
+    public string? Id { get; init; }
+    public string? DisplayName { get; init; }
+    public string? Status { get; init; }
+    public string? Role { get; init; }
+}
+
+/// <summary>Response from GET /orgs/ingestion-targets.</summary>
+public sealed record XrayIngestionTargetsResult
+{
+    public IReadOnlyList<XrayIngestionTargetOrg> Orgs { get; init; } = [];
+    public string? DefaultOrgId { get; init; }
 }
 
 /// <summary>Bulk Portfolio X-ray import response. A 207 Multi-Status response is still represented here.</summary>

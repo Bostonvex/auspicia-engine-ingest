@@ -18,6 +18,7 @@ research jobs by accident.
 |---|---|
 | **Base URL** | `https://app.auspicia.io/api` or the staging URL issued for your integration |
 | **Bulk import** | `POST /xray/portfolios:bulk` |
+| **Target discovery** | `GET /orgs/ingestion-targets` |
 | **Content type** | `application/json` |
 | **Auth** | Authenticated Auspicia API identity / service identity issued for your integration |
 | **Bulk size** | Up to 250 portfolios per request |
@@ -33,6 +34,7 @@ research jobs by accident.
 
 ```json
 {
+  "targetOrgId": "lampshade",
   "portfolios": [
     {
       "name": "LampShade 10-year model portfolio",
@@ -46,7 +48,15 @@ research jobs by accident.
 ```
 
 You may also send a single portfolio object without wrapping it in `portfolios`; the server treats it as a
-one-item bulk request.
+one-item bulk request. In that shape, `targetOrgId` is still top-level and is stripped before the item is
+parsed.
+
+### Bulk Request Fields
+
+| Field | Type | Req | Notes |
+|---|---|---|---|
+| `portfolios` / `items` | array | conditional | One or more portfolio objects. Omit only when sending a single portfolio object as the body. |
+| `targetOrgId` | string | — | Optional organization id to own the imported portfolios, for example `lampshade`. Must be top-level. |
 
 ### Portfolio Fields
 
@@ -62,9 +72,34 @@ At least one of `allocationsCsv` or `performanceCsv` must be present.
 
 ### Organization Targeting
 
-Current production behavior derives the owning organization from the authenticated API identity. A
-`targetOrgId` field is planned for multi-organization operators; do not rely on it until your Auspicia
-contact confirms it is enabled for your tenant.
+The owning organization is resolved server-side from the authenticated API identity:
+
+- Omit `targetOrgId` to use the identity's default ingestion organization.
+- Pass top-level `targetOrgId` when the same service/operator identity may ingest for more than one org.
+- Do not put `targetOrgId` inside individual `portfolios[]` items; per-item org targeting returns an
+  item-level `422`.
+- Unknown/inactive target orgs return request-level `404`.
+- Known orgs that your identity is not allowed to ingest for return request-level `403`.
+
+Discover allowed targets before submitting:
+
+```bash
+curl -sS "$BASE/orgs/ingestion-targets" \
+  -H "Authorization: Bearer $AUSPICIA_API_TOKEN" \
+  | jq
+```
+
+Example response:
+
+```json
+{
+  "orgs": [
+    { "id": "auspicia", "displayName": "Auspicia", "status": "active", "role": "platform-admin" },
+    { "id": "lampshade", "displayName": "LampShade", "status": "active", "role": "org-admin" }
+  ],
+  "defaultOrgId": "auspicia"
+}
+```
 
 ---
 
@@ -170,7 +205,9 @@ Request-level errors stop the whole request:
 
 | Status | Meaning | Caller action |
 |---:|---|---|
-| `401` / `403` | Authentication or network-access identity failed | Refresh/provision service identity. |
+| `401` | Authentication or network-access identity failed | Refresh/provision service identity. |
+| `403` | The identity is not authorized for `targetOrgId` | Use a returned target from `GET /orgs/ingestion-targets` or request access. |
+| `404` | `targetOrgId` is unknown or inactive | Correct the target org id or request org provisioning. |
 | `413` | More than 250 portfolios in one request | Split into smaller batches. |
 | `422` | Missing or empty `portfolios`/`items` array | Fix request shape. |
 | `503` | Database unavailable or service not configured | Retry with backoff; escalate if persistent. |
@@ -181,7 +218,7 @@ valid items in the same request. Common item statuses:
 | Status | Meaning | Caller action |
 |---:|---|---|
 | `400` | CSV shape is unusable, invalid `source`, bad date, missing NAV column, etc. | Fix that item and retry it. |
-| `422` | Item is not an object or has neither allocations nor performance CSV. | Fix that item and retry it. |
+| `422` | Item is not an object, has neither allocations nor performance CSV, or contains per-item `targetOrgId`. | Fix that item and retry it. |
 | `500` | Unexpected item-level failure after other items may have committed. | Retry that item after checking logs. |
 
 On `207 Multi-Status`, retry only the failed item indexes after fixing their payloads.
@@ -242,7 +279,30 @@ curl -sS -X POST "$BASE/xray/analyses/$ANALYSIS_ID/episodes/0/narrative" \
 
 ---
 
-## 6. curl Example
+## 6. Related Daily Import Endpoints
+
+Operator/admin daily import routes use the same organization targeting convention:
+
+- `POST /imports/daily`
+- `POST /imports/daily/jobs`
+
+Both accept top-level `targetOrgId` next to the existing `portfolio`, `run`, `researchLimit`, and `force`
+fields. These routes run the import → research → advice workflow; use the X-ray bulk endpoint when you only
+need to load historical allocation/NAV CSVs.
+
+```json
+{
+  "targetOrgId": "lampshade",
+  "portfolio": { "id": "lamp-model", "name": "LampShade model", "holdings": [] },
+  "run": { "date": "2026-07-04", "names": [] },
+  "researchLimit": 5,
+  "force": false
+}
+```
+
+---
+
+## 7. curl Example
 
 ```bash
 BASE=https://staging.auspicia.io/api
@@ -265,9 +325,10 @@ PY
 
 jq -n \
   --arg name "LampShade historical portfolio" \
+  --arg targetOrgId "lampshade" \
   --arg allocationsCsv "$alloc_csv" \
   --arg performanceCsv "$perf_csv" \
-  '{ portfolios: [{ name: $name, source: "desk", allocationsCsv: $allocationsCsv, performanceCsv: $performanceCsv }] }' \
+  '{ targetOrgId: $targetOrgId, portfolios: [{ name: $name, source: "desk", allocationsCsv: $allocationsCsv, performanceCsv: $performanceCsv }] }' \
 | curl -sS -X POST "$BASE/xray/portfolios:bulk" \
     -H "Content-Type: application/json" \
     --data @- \
@@ -291,10 +352,12 @@ See [clients/csharp](../clients/csharp/) for usage.
 
 ---
 
-## 7. Operational Notes
+## 8. Operational Notes
 
 - Keep each bulk request below 250 portfolios.
 - Use stable `name` / `investorPortfolioId` values so operators can reconcile imports.
+- Discover allowed organizations with `GET /orgs/ingestion-targets`; submit one top-level `targetOrgId`
+  for the whole bulk request when you need to override the default org.
 - Use performance CSV whenever you have a trusted NAV series; it avoids reconstructing NAV from prices.
 - Analysis attribution may require market-data coverage. Import can succeed even when later attribution has
   missing-price warnings.
