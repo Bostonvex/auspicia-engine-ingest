@@ -38,7 +38,7 @@ public sealed class AuspiciaEngineClient : IDisposable
     private readonly TimeSpan _baseDelay;
 
     /// <param name="baseUrl">e.g. "https://app.auspicia.io/api".</param>
-    /// <param name="token">the scoped engine bearer token issued to you.</param>
+    /// <param name="token">The API key bearer token issued to you. Legacy engine tokens also work on engine-run routes.</param>
     /// <param name="httpClient">optional shared HttpClient; one is created + disposed if null.</param>
     /// <param name="maxRetries">transient-failure retry budget (per call).</param>
     public AuspiciaEngineClient(string baseUrl, string token, HttpClient? httpClient = null, int maxRetries = 4)

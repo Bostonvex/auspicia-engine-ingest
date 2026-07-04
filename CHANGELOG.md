@@ -5,6 +5,10 @@ All notable changes to the Auspicia engine ingestion contract and client kit.
 ## [Unreleased]
 
 ### Docs
+- Added client-scoped API-key guidance, including one-key-per-client-org semantics, endpoint scope
+  requirements, show-once key handling, LampShade examples, and legacy engine-token migration notes.
+- Updated the README, quickstart, integration guide, Portfolio X-ray guide, and C# docs to use API keys for
+  daily engine runs, X-ray bulk import, target discovery, and daily import routes.
 - Documented live multi-organization ingestion targeting: `GET /orgs/ingestion-targets`, top-level
   `targetOrgId` on X-ray bulk import and daily import routes, and the request-level `403`/`404`
   authorization errors.

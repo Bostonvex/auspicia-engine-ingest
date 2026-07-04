@@ -3,7 +3,10 @@
 Get from zero to an accepted run in about five minutes. You need two things from your Auspicia contact:
 
 - a **base URL** (a staging URL is issued for onboarding), e.g. `https://staging.auspicia.io/api`
-- a **scoped engine token**, e.g. `eng_staging_xxxxxxxx` (tied to your `engineKey`)
+- a **client-scoped API key**, e.g. `ak_live_xxxxxxxx`, with `engine-runs:write` for your `engineKey`
+
+Existing integrations with a legacy `eng_...` engine token can keep using it on daily engine-run routes
+during migration. New integrations should use API keys.
 
 > If the host is behind Cloudflare Access, you'll also get a `CF-Access-Client-Id` /
 > `CF-Access-Client-Secret` service-token pair to send as headers. See the
@@ -33,7 +36,7 @@ Get from zero to an accepted run in about five minutes. You need two things from
 
 ```bash
 BASE=https://staging.auspicia.io/api
-TOKEN=eng_staging_xxxxxxxx
+TOKEN=ak_live_xxxxxxxx
 
 curl -sS -X POST "$BASE/v1/engine-runs:validate" \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
@@ -93,7 +96,7 @@ See [Dynamic parameters](PARAMETERS.md) for the full model (types, coercion, dis
 
 ```bash
 cd clients/csharp
-export AUSPICIA_ENGINE_TOKEN=eng_staging_xxxxxxxx
+export AUSPICIA_API_KEY=ak_live_xxxxxxxx
 export AUSPICIA_BASE_URL=https://staging.auspicia.io/api
 dotnet run --project Sample
 ```
@@ -108,5 +111,7 @@ for you. See [clients/csharp/README.md](../clients/csharp/README.md).
 - Loading historical portfolio/NAV CSV files for X-ray analysis? Use
   [Portfolio X-ray ingestion](PORTFOLIO-XRAY-INGESTION.md). Multi-org loaders can discover allowed
   targets with `GET /orgs/ingestion-targets` and send top-level `targetOrgId`.
+- Need endpoint scopes or key-handling rules? See
+  [Client-scoped API keys](API-KEYS.md).
 - Verify your checksum against the frozen **[reference vectors](../schema/checksum-test-vectors.json)** →
   [Checksum spec](CHECKSUM.md)

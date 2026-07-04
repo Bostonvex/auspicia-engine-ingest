@@ -1,11 +1,12 @@
 // Minimal end-to-end sample: build a run, dry-run validate it, then submit it.
 // Run with:
-//   AUSPICIA_ENGINE_TOKEN=eng_... AUSPICIA_BASE_URL=https://staging.auspicia.io/api dotnet run
+//   AUSPICIA_API_KEY=ak_live_... AUSPICIA_BASE_URL=https://staging.auspicia.io/api dotnet run
 using Auspicia.Engine;
 
 var baseUrl = Environment.GetEnvironmentVariable("AUSPICIA_BASE_URL") ?? "https://app.auspicia.io/api";
-var token = Environment.GetEnvironmentVariable("AUSPICIA_ENGINE_TOKEN")
-            ?? throw new InvalidOperationException("Set AUSPICIA_ENGINE_TOKEN.");
+var token = Environment.GetEnvironmentVariable("AUSPICIA_API_KEY")
+            ?? Environment.GetEnvironmentVariable("AUSPICIA_ENGINE_TOKEN")
+            ?? throw new InvalidOperationException("Set AUSPICIA_API_KEY.");
 var engineKey = Environment.GetEnvironmentVariable("AUSPICIA_ENGINE_KEY") ?? "vulkan-optimizer";
 
 var asOf = DateTime.UtcNow.ToString("yyyy-MM-dd");

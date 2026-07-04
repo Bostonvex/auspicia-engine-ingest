@@ -21,7 +21,7 @@ public sealed class AuspiciaXrayClient : IDisposable
     private readonly TimeSpan _baseDelay;
 
     /// <param name="baseUrl">e.g. "https://app.auspicia.io/api".</param>
-    /// <param name="bearerToken">Optional Auspicia API/service bearer token. Omit if auth is already on httpClient.</param>
+    /// <param name="bearerToken">Optional Auspicia API key bearer token. Omit if auth is already on httpClient.</param>
     /// <param name="httpClient">Optional shared HttpClient; one is created + disposed if null.</param>
     /// <param name="defaultHeaders">Optional extra headers, e.g. Cloudflare Access service-token headers.</param>
     /// <param name="maxRetries">Retry budget for transport errors and 5xx responses.</param>

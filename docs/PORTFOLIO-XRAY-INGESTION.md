@@ -20,13 +20,12 @@ research jobs by accident.
 | **Bulk import** | `POST /xray/portfolios:bulk` |
 | **Target discovery** | `GET /orgs/ingestion-targets` |
 | **Content type** | `application/json` |
-| **Auth** | Authenticated Auspicia API identity / service identity issued for your integration |
+| **Auth** | Client-scoped API key with `orgs:read` and `xray:write` |
 | **Bulk size** | Up to 250 portfolios per request |
 | **Partial success** | Yes. Good items commit; malformed items return per-item errors. |
 
-> Note: this endpoint is not an engine-token endpoint. Engine bearer tokens are scoped to `/v1/engine-runs`.
-> For machine-to-machine X-ray ingestion, use the authenticated service identity and network-access headers
-> your Auspicia contact provisions.
+> Note: this endpoint is not a legacy engine-token endpoint. For machine-to-machine X-ray ingestion, use
+> the client-scoped API key and any network-access headers your Auspicia contact provisions.
 
 ---
 
@@ -72,10 +71,12 @@ At least one of `allocationsCsv` or `performanceCsv` must be present.
 
 ### Organization Targeting
 
-The owning organization is resolved server-side from the authenticated API identity:
+The owning organization is resolved server-side from the authenticated API key:
 
 - Omit `targetOrgId` to use the identity's default ingestion organization.
-- Pass top-level `targetOrgId` when the same service/operator identity may ingest for more than one org.
+- Pass top-level `targetOrgId` when the same operator identity may ingest for more than one org.
+- For client-scoped API keys, use one key per client organization. A LampShade key defaults to
+  `lampshade` and can only send `"targetOrgId": "lampshade"`.
 - Do not put `targetOrgId` inside individual `portfolios[]` items; per-item org targeting returns an
   item-level `422`.
 - Unknown/inactive target orgs return request-level `404`.
@@ -85,7 +86,7 @@ Discover allowed targets before submitting:
 
 ```bash
 curl -sS "$BASE/orgs/ingestion-targets" \
-  -H "Authorization: Bearer $AUSPICIA_API_TOKEN" \
+  -H "Authorization: Bearer $AUSPICIA_API_KEY" \
   | jq
 ```
 
@@ -94,10 +95,9 @@ Example response:
 ```json
 {
   "orgs": [
-    { "id": "auspicia", "displayName": "Auspicia", "status": "active", "role": "platform-admin" },
-    { "id": "lampshade", "displayName": "LampShade", "status": "active", "role": "org-admin" }
+    { "id": "lampshade", "displayName": "LampShade", "status": "active", "role": "api-key" }
   ],
-  "defaultOrgId": "auspicia"
+  "defaultOrgId": "lampshade"
 }
 ```
 
@@ -205,7 +205,7 @@ Request-level errors stop the whole request:
 
 | Status | Meaning | Caller action |
 |---:|---|---|
-| `401` | Authentication or network-access identity failed | Refresh/provision service identity. |
+| `401` | Authentication or network-access identity failed | Refresh/provision the API key or Access headers. |
 | `403` | The identity is not authorized for `targetOrgId` | Use a returned target from `GET /orgs/ingestion-targets` or request access. |
 | `404` | `targetOrgId` is unknown or inactive | Correct the target org id or request org provisioning. |
 | `413` | More than 250 portfolios in one request | Split into smaller batches. |
@@ -236,6 +236,10 @@ curl -sS -X POST "$BASE/xray/portfolios/$PORTFOLIO_ID/analyses" \
   -H "Content-Type: application/json" \
   --data '{ "thresholdPct": 10, "topN": 8 }' | jq
 ```
+
+Client-scoped API keys currently cover X-ray ingestion, not X-ray reads or analysis control. `xray:read` is
+not exposed yet, so the analysis and polling calls above require the app/operator identity your Auspicia
+contact provides.
 
 `topN` defaults to `8`. Pass a higher value for a longer table, or omit `topN` for the standard UI-sized
 episode set. Internal forensic tooling may request the full uncapped list, but partner integrations should
@@ -288,7 +292,8 @@ Operator/admin daily import routes use the same organization targeting conventio
 
 Both accept top-level `targetOrgId` next to the existing `portfolio`, `run`, `researchLimit`, and `force`
 fields. These routes run the import → research → advice workflow; use the X-ray bulk endpoint when you only
-need to load historical allocation/NAV CSVs.
+need to load historical allocation/NAV CSVs. Service integrations calling these routes need an API key with
+`imports:daily`; `xray:write` is not enough.
 
 ```json
 {
@@ -306,6 +311,7 @@ need to load historical allocation/NAV CSVs.
 
 ```bash
 BASE=https://staging.auspicia.io/api
+API_KEY=ak_live_xxxxx
 
 # If your staging host is protected by Cloudflare Access, include:
 #   -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID"
@@ -330,6 +336,7 @@ jq -n \
   --arg performanceCsv "$perf_csv" \
   '{ targetOrgId: $targetOrgId, portfolios: [{ name: $name, source: "desk", allocationsCsv: $allocationsCsv, performanceCsv: $performanceCsv }] }' \
 | curl -sS -X POST "$BASE/xray/portfolios:bulk" \
+    -H "Authorization: Bearer $API_KEY" \
     -H "Content-Type: application/json" \
     --data @- \
 | jq
@@ -356,8 +363,8 @@ See [clients/csharp](../clients/csharp/) for usage.
 
 - Keep each bulk request below 250 portfolios.
 - Use stable `name` / `investorPortfolioId` values so operators can reconcile imports.
-- Discover allowed organizations with `GET /orgs/ingestion-targets`; submit one top-level `targetOrgId`
-  for the whole bulk request when you need to override the default org.
+- Discover allowed organizations with `GET /orgs/ingestion-targets` using a key with `orgs:read`; submit one
+  top-level `targetOrgId` for the whole bulk request when you need to override the default org.
 - Use performance CSV whenever you have a trusted NAV series; it avoids reconstructing NAV from prices.
 - Analysis attribution may require market-data coverage. Import can succeed even when later attribution has
   missing-price warnings.

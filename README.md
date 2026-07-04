@@ -17,6 +17,7 @@ guide that matches what you are loading:
 | **[Quick start](docs/QUICKSTART.md)** | Submit your first daily engine run in about 5 minutes (curl + C#). |
 | **[Engine integration guide](docs/INTEGRATION-GUIDE.md)** | Complete daily-run contract: auth, envelope, endpoints, idempotency, errors, go-live. |
 | **[Portfolio X-ray ingestion](docs/PORTFOLIO-XRAY-INGESTION.md)** | Bulk-load historical allocation/NAV CSVs for X-ray drawdown attribution. |
+| **[Client-scoped API keys](docs/API-KEYS.md)** | Auth model, org binding, endpoint scopes, and key-handling rules. |
 | **[Dynamic parameters](docs/PARAMETERS.md)** | Declare arbitrary per-name parameters the platform consumes by definition. |
 | **[Checksum spec](docs/CHECKSUM.md)** | Language-stable integrity algorithm for daily engine runs. |
 | **[JSON Schema](schema/envelope.schema.json)** | Machine-readable daily engine-run envelope contract. |
@@ -34,7 +35,7 @@ it over HTTPS:
         your engine                         Auspicia
    ┌───────────────────┐   POST /v1/engine-runs   ┌──────────────────────────────┐
    │  runId, asOf,     │  ───────────────────────▶ │  validate → checksum → store  │
-   │  positions[],     │   Bearer <engine-token>   │  → supersede prior day        │
+   │  positions[],     │   Bearer <api-key>         │  → supersede prior day        │
    │  parameterDefs[]  │  ◀─────────────────────── │  → register params            │
    └───────────────────┘   201 accepted / 200 dedup└──────────────────────────────┘
 ```
@@ -117,9 +118,9 @@ Portfolio X-ray ingestion accepts JSON containing one or more portfolio CSV pair
 ```
 
 Multi-organization operators can call `GET /orgs/ingestion-targets` to discover which organizations their
-authenticated API identity may ingest for. If you omit `targetOrgId`, Auspicia uses the default organization
-for that identity. When present, `targetOrgId` must be top-level on the bulk request; per-item organization
-targeting is rejected.
+authenticated API key may ingest for. Client-scoped API keys return only their own organization. If you omit
+`targetOrgId`, Auspicia uses the default organization for that key. When present, `targetOrgId` must be
+top-level on the bulk request; per-item organization targeting is rejected.
 
 The same `targetOrgId` rule applies to admin-triggered daily portfolio imports (`POST /imports/daily` and
 `POST /imports/daily/jobs`) when those routes are used instead of the X-ray bulk loader.
@@ -144,11 +145,16 @@ Full contract: [Portfolio X-ray ingestion](docs/PORTFOLIO-XRAY-INGESTION.md).
 You will receive from your Auspicia integration contact:
 
 - a staging base URL, for example `https://staging.auspicia.io/api`
-- auth credentials for the path you are using:
-  - daily engine runs use a scoped engine bearer token tied to your `engineKey`
-  - Portfolio X-ray uses an authenticated Auspicia API/service identity; that identity determines allowed
-    ingestion organizations via `GET /orgs/ingestion-targets`
+- one or more client-scoped API keys:
+  - use one key per client organization, for example one LampShade key for `targetOrgId=lampshade`
+  - daily engine-run keys need `engine-runs:write` or `engine-runs:validate` and matching `engineKeys`
+  - Portfolio X-ray keys need `orgs:read` plus `xray:write`
+  - daily import keys need `imports:daily`
 - Cloudflare Access service-token headers if the host is protected by Access
+
+Legacy `eng_...` engine tokens remain supported for daily engine-run routes during migration, but new
+integrations should use API keys. See [Client-scoped API keys](docs/API-KEYS.md) for the complete scope
+table and key-handling rules.
 
 For daily engine runs, follow the [go-live checklist](docs/INTEGRATION-GUIDE.md#going-live--checklist).
 For Portfolio X-ray, start with the [X-ray operational notes](docs/PORTFOLIO-XRAY-INGESTION.md#8-operational-notes).
@@ -171,5 +177,5 @@ clients/
 
 ## Support & licence
 
-Questions and token requests: your Auspicia integration contact. This kit is released under the
+Questions and API-key requests: your Auspicia integration contact. This kit is released under the
 [Apache 2.0 licence](LICENSE) — use it, fork it, port it to your language of choice.
