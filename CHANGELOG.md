@@ -11,6 +11,8 @@ All notable changes to the Auspicia engine ingestion contract and client kit.
 - Linked the X-ray ingestion contract from the README, quick start, and integration guide.
 - Clarified X-ray item-level error envelopes, finite `topN=8` analysis default, 0-based episode indexes,
   and `primary`/`nested` episode kinds.
+- Refreshed the README so the repo presents both daily engine-run ingestion and Portfolio X-ray historical
+  imports as first-class integration paths.
 
 ## [1.0.0] — 2026-07-03
 
