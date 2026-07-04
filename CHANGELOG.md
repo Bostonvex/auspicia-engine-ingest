@@ -5,6 +5,9 @@ All notable changes to the Auspicia engine ingestion contract and client kit.
 ## [Unreleased]
 
 ### Docs
+- Documented live multi-organization ingestion targeting: `GET /orgs/ingestion-targets`, top-level
+  `targetOrgId` on X-ray bulk import and daily import routes, and the request-level `403`/`404`
+  authorization errors.
 - Added the Portfolio X-ray ingestion guide for `POST /xray/portfolios:bulk`, including the bulk JSON
   shape, allocation/performance CSV contracts, parse-report response, partial-success semantics, and the
   separate analysis trigger.
@@ -15,6 +18,7 @@ All notable changes to the Auspicia engine ingestion contract and client kit.
   imports as first-class integration paths.
 - Added `AuspiciaXrayClient` for C# callers, with typed `201`/`207` bulk import results, request/auth/ingest
   exceptions, service-header support, and retry handling for transient failures.
+- Added C# X-ray helpers for org-target discovery and top-level `targetOrgId` bulk imports.
 
 ## [1.0.0] — 2026-07-03
 

@@ -103,6 +103,7 @@ Portfolio X-ray ingestion accepts JSON containing one or more portfolio CSV pair
 
 ```json
 {
+  "targetOrgId": "lampshade",
   "portfolios": [
     {
       "name": "LampShade 10-year model portfolio",
@@ -114,6 +115,14 @@ Portfolio X-ray ingestion accepts JSON containing one or more portfolio CSV pair
   ]
 }
 ```
+
+Multi-organization operators can call `GET /orgs/ingestion-targets` to discover which organizations their
+authenticated API identity may ingest for. If you omit `targetOrgId`, Auspicia uses the default organization
+for that identity. When present, `targetOrgId` must be top-level on the bulk request; per-item organization
+targeting is rejected.
+
+The same `targetOrgId` rule applies to admin-triggered daily portfolio imports (`POST /imports/daily` and
+`POST /imports/daily/jobs`) when those routes are used instead of the X-ray bulk loader.
 
 `POST /xray/portfolios:bulk` returns:
 
@@ -137,11 +146,12 @@ You will receive from your Auspicia integration contact:
 - a staging base URL, for example `https://staging.auspicia.io/api`
 - auth credentials for the path you are using:
   - daily engine runs use a scoped engine bearer token tied to your `engineKey`
-  - Portfolio X-ray uses an authenticated Auspicia API/service identity
+  - Portfolio X-ray uses an authenticated Auspicia API/service identity; that identity determines allowed
+    ingestion organizations via `GET /orgs/ingestion-targets`
 - Cloudflare Access service-token headers if the host is protected by Access
 
 For daily engine runs, follow the [go-live checklist](docs/INTEGRATION-GUIDE.md#going-live--checklist).
-For Portfolio X-ray, start with the [X-ray operational notes](docs/PORTFOLIO-XRAY-INGESTION.md#7-operational-notes).
+For Portfolio X-ray, start with the [X-ray operational notes](docs/PORTFOLIO-XRAY-INGESTION.md#8-operational-notes).
 
 ## Repository layout
 

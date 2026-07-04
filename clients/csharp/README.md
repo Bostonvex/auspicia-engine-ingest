@@ -3,7 +3,8 @@
 A small .NET 8 library for Auspicia machine-to-machine ingestion:
 
 - `AuspiciaEngineClient` pushes daily optimizer runs, with parameters, into the engine-run API.
-- `AuspiciaXrayClient` bulk-loads historical allocation/NAV CSVs into Portfolio X-ray.
+- `AuspiciaXrayClient` discovers allowed ingestion organizations and bulk-loads historical allocation/NAV
+  CSVs into Portfolio X-ray.
 
 The engine client handles the envelope shape, integrity **checksum** (including parameters), **bearer auth**,
 **idempotency**, and **retry/backoff**. The X-ray client handles `201`/`207` bulk import responses,
@@ -29,6 +30,7 @@ dotnet pack  AuspiciaEngineClient   # -> Auspicia.Engine.Client.1.0.0.nupkg
 
 ```csharp
 using Auspicia.Engine;
+using System.Linq;
 
 using var client = new AuspiciaEngineClient(
     baseUrl: "https://app.auspicia.io/api",   // provisioned per-integration
@@ -107,6 +109,11 @@ using var xray = new AuspiciaXrayClient(
     bearerToken: Environment.GetEnvironmentVariable("AUSPICIA_API_TOKEN"),
     defaultHeaders: headers);
 
+XrayIngestionTargetsResult targets = await xray.ListIngestionTargetsAsync();
+string? targetOrgId = targets.Orgs.Any(o => o.Id == "lampshade")
+    ? "lampshade"
+    : targets.DefaultOrgId;
+
 XrayBulkImportResult imported = await xray.BulkImportAsync(new[]
 {
     new XrayPortfolioImport
@@ -117,7 +124,7 @@ XrayBulkImportResult imported = await xray.BulkImportAsync(new[]
         PerformanceCsv = File.ReadAllText("PortfolioPerformance.csv"),
         InvestorPortfolioId = "optional-external-id",
     },
-});
+}, targetOrgId: targetOrgId);
 
 if (imported.HasFailures)
 {
