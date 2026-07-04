@@ -2,6 +2,16 @@
 
 All notable changes to the Auspicia engine ingestion contract and client kit.
 
+## [Unreleased]
+
+### Docs
+- Added the Portfolio X-ray ingestion guide for `POST /xray/portfolios:bulk`, including the bulk JSON
+  shape, allocation/performance CSV contracts, parse-report response, partial-success semantics, and the
+  separate analysis trigger.
+- Linked the X-ray ingestion contract from the README, quick start, and integration guide.
+- Clarified X-ray item-level error envelopes, finite `topN=8` analysis default, 0-based episode indexes,
+  and `primary`/`nested` episode kinds.
+
 ## [1.0.0] — 2026-07-03
 
 Initial public release of the integration kit.
