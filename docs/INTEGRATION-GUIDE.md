@@ -203,7 +203,10 @@ not daily optimizer signals:
 - `POST /xray/portfolios:bulk`
 - JSON body: `{ "portfolios": [{ "name", "source", "allocationsCsv", "performanceCsv", "investorPortfolioId" }] }`
 - Returns `201 Created` when all items import, or `207 Multi-Status` for partial success.
+- Per-item failures are returned as `{index, status, detail}`; retry only failed indexes after repair.
 - Analysis is started separately with `POST /xray/portfolios/{portfolioId}/analyses`.
+- Analysis defaults to a finite `topN=8`; completed episodes have 0-based `idx` and optional
+  `kind: "primary" | "nested"` for drawdown grouping.
 
 See [Portfolio X-ray ingestion](PORTFOLIO-XRAY-INGESTION.md) for the full request/response contract.
 

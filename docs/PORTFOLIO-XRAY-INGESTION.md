@@ -118,7 +118,8 @@ security returns.
 ## 4. Response
 
 If every item succeeds, the endpoint returns `201 Created`. If some items fail and some succeed, it returns
-`207 Multi-Status`.
+`207 Multi-Status`. If every item is malformed, the endpoint still returns `207 Multi-Status` with an empty
+`imported` array and per-item errors, so callers can repair and replay individual items.
 
 ```json
 {
@@ -163,6 +164,28 @@ If every item succeeds, the endpoint returns `201 Created`. If some items fail a
 Unknown tickers are reported, not rejected. They can still be imported; attribution later reports them in
 data-quality warnings or the `Unknown` sector bucket.
 
+### Error Handling
+
+Request-level errors stop the whole request:
+
+| Status | Meaning | Caller action |
+|---:|---|---|
+| `401` / `403` | Authentication or network-access identity failed | Refresh/provision service identity. |
+| `413` | More than 250 portfolios in one request | Split into smaller batches. |
+| `422` | Missing or empty `portfolios`/`items` array | Fix request shape. |
+| `503` | Database unavailable or service not configured | Retry with backoff; escalate if persistent. |
+
+Item-level errors are returned inside `errors[]` with `{index, status, detail}` and do not roll back other
+valid items in the same request. Common item statuses:
+
+| Status | Meaning | Caller action |
+|---:|---|---|
+| `400` | CSV shape is unusable, invalid `source`, bad date, missing NAV column, etc. | Fix that item and retry it. |
+| `422` | Item is not an object or has neither allocations nor performance CSV. | Fix that item and retry it. |
+| `500` | Unexpected item-level failure after other items may have committed. | Retry that item after checking logs. |
+
+On `207 Multi-Status`, retry only the failed item indexes after fixing their payloads.
+
 ---
 
 ## 5. Starting Analysis
@@ -174,8 +197,12 @@ Ingestion does not automatically run analysis. After a portfolio imports success
 # Cloudflare Access service-token headers on protected staging hosts.
 curl -sS -X POST "$BASE/xray/portfolios/$PORTFOLIO_ID/analyses" \
   -H "Content-Type: application/json" \
-  --data '{ "thresholdPct": 10, "topN": 5 }' | jq
+  --data '{ "thresholdPct": 10, "topN": 8 }' | jq
 ```
+
+`topN` defaults to `8`. Pass a higher value for a longer table, or omit `topN` for the standard UI-sized
+episode set. Internal forensic tooling may request the full uncapped list, but partner integrations should
+prefer a finite `topN`.
 
 Response:
 
@@ -195,14 +222,20 @@ Response:
 Poll:
 
 - `GET /xray/analyses/{analysisId}` for status, events, and completed episodes.
-- `GET /xray/analyses/active?portfolioId={portfolioId}` for the active queued/running analysis.
+- `GET /xray/analyses/active?portfolioId={portfolioId}` for the active queued/running analysis; returns
+  a bare analysis object or `null`.
 - `GET /xray/portfolios/{portfolioId}/nav` for the imported NAV series.
+
+Completed episodes use 0-based `idx` values. Each episode also includes `kind`:
+
+- `primary` — high-watermark drawdown spell.
+- `nested` — local event-shaped drawdown inside a longer unrecovered spell.
 
 Narratives are generated on demand:
 
 ```bash
 # Add any service-auth headers your Auspicia contact provided.
-curl -sS -X POST "$BASE/xray/analyses/$ANALYSIS_ID/episodes/1/narrative" \
+curl -sS -X POST "$BASE/xray/analyses/$ANALYSIS_ID/episodes/0/narrative" \
   -H "Content-Type: application/json" \
   --data '{ "force": false }' | jq
 ```
