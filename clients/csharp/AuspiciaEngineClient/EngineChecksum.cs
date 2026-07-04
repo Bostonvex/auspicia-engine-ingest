@@ -144,6 +144,8 @@ public static class EngineChecksum
     // renderer below is identical whether params were hand-built or round-tripped through JSON.
     private static object? Unwrap(object? value)
     {
+        if (value is EngineJsonValue jsonValue)
+            return Unwrap(jsonValue.ToClrValue());
         if (value is not JsonElement je)
             return value;
         switch (je.ValueKind)

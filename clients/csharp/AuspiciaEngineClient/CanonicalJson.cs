@@ -33,6 +33,9 @@ internal static class CanonicalJson
             case null:
                 sb.Append("null");
                 break;
+            case EngineJsonValue jsonValue:
+                Write(sb, jsonValue.ToClrValue());
+                break;
             case bool b:
                 sb.Append(b ? "true" : "false");
                 break;

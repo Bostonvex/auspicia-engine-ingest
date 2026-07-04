@@ -11,8 +11,6 @@ namespace Auspicia.Engine.Tests;
 /// </summary>
 public class ChecksumParityTests
 {
-    private static readonly JsonSerializerOptions Json = AuspiciaEngineClient.Json;
-
     public static IEnumerable<object[]> Cases()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "checksum-test-vectors.json");
@@ -33,7 +31,8 @@ public class ChecksumParityTests
     [MemberData(nameof(Cases))]
     public void Reproduces_reference_vector(string name, string runJson, string canonical, string checksum)
     {
-        var run = JsonSerializer.Deserialize<EngineRun>(runJson, Json)!;
+        Assert.False(string.IsNullOrWhiteSpace(name));
+        var run = JsonSerializer.Deserialize(runJson, AuspiciaJsonContext.Default.EngineRun)!;
         Assert.Equal(canonical, EngineChecksum.Canonical(run));   // exact byte string
         Assert.Equal(checksum, EngineChecksum.Compute(run));      // sha256:…
     }

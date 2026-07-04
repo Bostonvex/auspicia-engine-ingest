@@ -13,6 +13,8 @@ Pairs with the [integration guide](../../docs/INTEGRATION-GUIDE.md) and
 [Portfolio X-ray ingestion guide](../../docs/PORTFOLIO-XRAY-INGESTION.md).
 
 - **Target:** .NET 8. No external dependencies (uses `System.Text.Json` + `HttpClient`).
+- **Native AOT:** JSON uses source-generated metadata and `EngineJsonValue` for dynamic params; no
+  reflection-based `System.Text.Json` contract discovery is required.
 - **Layout:** `AuspiciaEngineClient/` (the library) · `Sample/` (a runnable console example) ·
   `Tests/` (a checksum-parity test against the shared reference vectors).
 
@@ -52,9 +54,9 @@ var run = new EngineRun
     Positions = new List<EnginePosition>
     {
         new() { Ticker = "AAPL", Weight =  4.10, Score =  0.62, Rank = 1,
-                Params = new Dictionary<string, object> { ["momentum"] =  0.73, ["conviction"] = 8, ["regime"] = "risk_on"  } },
+                Params = new Dictionary<string, EngineJsonValue> { ["momentum"] =  0.73, ["conviction"] = 8, ["regime"] = "risk_on"  } },
         new() { Ticker = "NVDA", Weight = -3.25, Score = -0.48, Rank = 2,
-                Params = new Dictionary<string, object> { ["momentum"] = -0.11, ["conviction"] = 3, ["regime"] = "risk_off" } },
+                Params = new Dictionary<string, EngineJsonValue> { ["momentum"] = -0.11, ["conviction"] = 3, ["regime"] = "risk_off" } },
     },
 };
 
@@ -87,8 +89,8 @@ foreach (var p in await client.GetParametersAsync("vulkan-optimizer"))
 
 ### Parameters
 Declare parameters in `EngineRun.ParameterDefs`; attach values per name in `EnginePosition.Params`
-(`Dictionary<string, object>`). Values can be `double`, `int`/`long`, `bool`, `string`, a numeric vector
-(`double[]` / `IReadOnlyList<double>`), or a nested object for a `json` param. See
+(`Dictionary<string, EngineJsonValue>`). Values can be `double`, `int`/`long`, `bool`, `string`, a numeric
+vector (`double[]`), or a nested `Dictionary<string, EngineJsonValue>` for a `json` param. See
 [Dynamic parameters](../../docs/PARAMETERS.md).
 
 ### CSV (legacy, weights-only)

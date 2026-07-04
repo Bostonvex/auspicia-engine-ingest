@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace Auspicia.Engine;
 
-// Request models — serialized with a camelCase naming policy (see AuspiciaEngineClient.Json).
+// Request models — serialized with the source-generated AuspiciaJsonContext.
 
 /// <summary>Who produced the run.</summary>
 public sealed record Producer
@@ -45,11 +45,10 @@ public sealed record EnginePosition
     public int? Rank { get; init; }
     public string? Figi { get; init; }
     public string? Cik { get; init; }
-    public IDictionary<string, object>? Attributes { get; init; }
+    public IDictionary<string, EngineJsonValue>? Attributes { get; init; }
     /// <summary>Per-name declared-parameter values; keys must match a ParameterDefinition on the run.
-    /// Values are CLR scalars (double, int, long, bool, string), a vector (IReadOnlyList&lt;double&gt;),
-    /// or a nested object for a "json" param.</summary>
-    public IDictionary<string, object>? Params { get; init; }
+    /// Values are reflection-free JSON scalars, arrays, or nested objects.</summary>
+    public IDictionary<string, EngineJsonValue>? Params { get; init; }
 }
 
 /// <summary>The optimizer's output for one trading day.</summary>
@@ -100,7 +99,7 @@ public sealed record CoercionWarning
     public string? ParamKey { get; init; }
     public string? Ticker { get; init; }
     public string? DeclaredType { get; init; }
-    public object? Received { get; init; }
+    public EngineJsonValue? Received { get; init; }
     public string? Reason { get; init; }
 }
 
@@ -173,4 +172,9 @@ public sealed record ProblemError
 {
     public string? Path { get; init; }
     public string? Msg { get; init; }
+}
+
+public sealed record ParameterListResult
+{
+    public IReadOnlyList<ParameterInfo>? Parameters { get; init; }
 }

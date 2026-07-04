@@ -12,6 +12,7 @@
     <Authors>Auspicia Intelligence</Authors>
     <Description>Client library for Auspicia ingestion APIs — submit daily optimizer runs and bulk-load Portfolio X-ray historical CSVs.</Description>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
 </Project>

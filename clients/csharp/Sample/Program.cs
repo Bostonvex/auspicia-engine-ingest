@@ -31,9 +31,9 @@ var run = new EngineRun
     Positions = new List<EnginePosition>
     {
         new() { Ticker = "AAPL", Weight = 4.10, Score = 0.62, Rank = 1,
-                Params = new Dictionary<string, object> { ["momentum"] = 0.73, ["conviction"] = 8, ["regime"] = "risk_on" } },
+                Params = new Dictionary<string, EngineJsonValue> { ["momentum"] = 0.73, ["conviction"] = 8, ["regime"] = "risk_on" } },
         new() { Ticker = "NVDA", Weight = -3.25, Score = -0.48, Rank = 2,
-                Params = new Dictionary<string, object> { ["momentum"] = -0.11, ["conviction"] = 3, ["regime"] = "risk_off" } },
+                Params = new Dictionary<string, EngineJsonValue> { ["momentum"] = -0.11, ["conviction"] = 3, ["regime"] = "risk_off" } },
     },
 };
 
