@@ -10,6 +10,7 @@ conviction, risk, embeddings, …). It contains everything you need to integrate
 |---|---|
 | 📘 **[Quick start](docs/QUICKSTART.md)** | Submit your first run in ~5 minutes (curl + C#). |
 | 📗 **[Integration guide](docs/INTEGRATION-GUIDE.md)** | The complete contract: auth, envelope, endpoints, idempotency, errors, go-live. |
+| 📙 **[Portfolio X-ray ingestion](docs/PORTFOLIO-XRAY-INGESTION.md)** | Bulk-load historical allocation/NAV CSVs for drawdown attribution and X-ray analysis. |
 | 🧬 **[Dynamic parameters](docs/PARAMETERS.md)** | How to declare and send arbitrary, evolving parameters the platform consumes by definition. |
 | 🔒 **[Checksum spec](docs/CHECKSUM.md)** | The language-stable integrity algorithm, with a percent-by-percent worked example. |
 | 📐 **[JSON Schema](schema/envelope.schema.json)** | Machine-readable envelope contract — validate your payloads in CI. |
@@ -40,6 +41,10 @@ Your engine emits one **run** per trading day. You wrap it in an **envelope** an
 - **Producer-driven parameters.** Beyond weights, your engine declares the parameters it computes; the
   platform stores, indexes, and exposes them for filtering/ranking **without a schema change on our side**.
   Add a new factor next quarter — just declare it. See [Dynamic parameters](docs/PARAMETERS.md).
+
+For historical portfolio/NAV files used by Portfolio X-ray, use the separate
+[`POST /xray/portfolios:bulk`](docs/PORTFOLIO-XRAY-INGESTION.md) contract instead of the daily engine-run
+contract.
 
 ## A minimal run
 
@@ -97,7 +102,7 @@ Then follow the [go-live checklist](docs/INTEGRATION-GUIDE.md#going-live--checkl
 ## Repository layout
 
 ```
-docs/         Integration guide, quick start, dynamic-parameter model, checksum spec
+docs/         Integration guide, quick start, X-ray ingestion, dynamic-parameter model, checksum spec
 schema/       JSON Schema for the envelope + frozen checksum reference vectors
 clients/
   csharp/     .NET 8 client library + runnable sample + a vectors-parity test

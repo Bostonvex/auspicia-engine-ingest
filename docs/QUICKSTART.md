@@ -105,5 +105,7 @@ for you. See [clients/csharp/README.md](../clients/csharp/README.md).
 
 - Full contract, errors, and the **[go-live checklist](INTEGRATION-GUIDE.md#going-live--checklist)** →
   [Integration guide](INTEGRATION-GUIDE.md)
+- Loading historical portfolio/NAV CSV files for X-ray analysis? Use
+  [Portfolio X-ray ingestion](PORTFOLIO-XRAY-INGESTION.md).
 - Verify your checksum against the frozen **[reference vectors](../schema/checksum-test-vectors.json)** →
   [Checksum spec](CHECKSUM.md)

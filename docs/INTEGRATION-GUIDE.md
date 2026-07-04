@@ -15,8 +15,10 @@ with the [quick start](QUICKSTART.md).
 | | |
 |---|---|
 | **Base URL** | `https://app.auspicia.io/api` (provisioned per-integration; a staging URL is issued for testing) |
-| **Auth** | `Authorization: Bearer <engine-token>` — a scoped token we issue you, tied to your `engineKey` |
+| **Engine auth** | `Authorization: Bearer <engine-token>` — a scoped token we issue you, tied to your `engineKey` |
 | **Submit a run** | `POST /v1/engine-runs` (JSON) or `POST /v1/engine-runs:csv` (CSV) |
+| **Import historical portfolios** | `POST /xray/portfolios:bulk` (separate Portfolio X-ray contract) |
+| **X-ray auth** | Authenticated Auspicia API/service identity; see the X-ray guide for details |
 | **Test without writing** | `POST /v1/engine-runs:validate` (dry-run — validate + price, no persistence) |
 | **Discover parameters** | `GET /v1/engine-parameters` |
 | **Idempotent** | Yes — safe to retry; re-submitting the same `idempotencyKey` returns the stored run, `deduped: true` |
@@ -25,6 +27,9 @@ with the [quick start](QUICKSTART.md).
 
 **Recommended flow:** `validate` once during onboarding → `submit` daily → on network error, **retry the
 same envelope** (idempotency makes this safe).
+
+Need to load historical allocation/NAV files for drawdown attribution instead of a daily optimizer signal?
+Use the separate [Portfolio X-ray ingestion guide](PORTFOLIO-XRAY-INGESTION.md).
 
 ### Network access (Cloudflare Access)
 
@@ -189,6 +194,18 @@ First column = date; remaining columns = signed weights. Zero/blank cells are dr
 - `GET /v1/engine-runs?engineKey=…&asOf=YYYY-MM-DD&limit=20` — recent run summaries.
 - `GET /v1/engine-runs/{id|runId}` — one run with all positions (incl. their `params`).
 - `GET /v1/securities/{symbol}/optimizer/latest` — the latest accepted weight for a name.
+
+### Portfolio X-ray bulk ingestion
+
+Historical portfolio X-ray imports use a separate endpoint because they carry CSV allocation/NAV history,
+not daily optimizer signals:
+
+- `POST /xray/portfolios:bulk`
+- JSON body: `{ "portfolios": [{ "name", "source", "allocationsCsv", "performanceCsv", "investorPortfolioId" }] }`
+- Returns `201 Created` when all items import, or `207 Multi-Status` for partial success.
+- Analysis is started separately with `POST /xray/portfolios/{portfolioId}/analyses`.
+
+See [Portfolio X-ray ingestion](PORTFOLIO-XRAY-INGESTION.md) for the full request/response contract.
 
 ---
 
