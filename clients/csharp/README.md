@@ -1,8 +1,15 @@
-# Auspicia Engine Client (C#)
+# Auspicia Ingestion Client (C#)
 
-A small .NET 8 library for pushing daily optimizer runs — with parameters — into the Auspicia ingestion
-API. It handles the envelope shape, the integrity **checksum** (including parameters), **bearer auth**,
-**idempotency**, and **retry/backoff**. Pairs with the [integration guide](../../docs/INTEGRATION-GUIDE.md).
+A small .NET 8 library for Auspicia machine-to-machine ingestion:
+
+- `AuspiciaEngineClient` pushes daily optimizer runs, with parameters, into the engine-run API.
+- `AuspiciaXrayClient` bulk-loads historical allocation/NAV CSVs into Portfolio X-ray.
+
+The engine client handles the envelope shape, integrity **checksum** (including parameters), **bearer auth**,
+**idempotency**, and **retry/backoff**. The X-ray client handles `201`/`207` bulk import responses,
+per-item errors, request-level failures, optional service bearer auth, and optional Cloudflare Access headers.
+Pairs with the [integration guide](../../docs/INTEGRATION-GUIDE.md) and
+[Portfolio X-ray ingestion guide](../../docs/PORTFOLIO-XRAY-INGESTION.md).
 
 - **Target:** .NET 8. No external dependencies (uses `System.Text.Json` + `HttpClient`).
 - **Layout:** `AuspiciaEngineClient/` (the library) · `Sample/` (a runnable console example) ·
@@ -18,7 +25,7 @@ dotnet build AuspiciaEngineClient   # build the library
 dotnet pack  AuspiciaEngineClient   # -> Auspicia.Engine.Client.1.0.0.nupkg
 ```
 
-## Usage
+## Daily engine-run usage
 
 ```csharp
 using Auspicia.Engine;
@@ -83,6 +90,60 @@ Declare parameters in `EngineRun.ParameterDefs`; attach values per name in `Engi
 ```csharp
 await client.SubmitCsvAsync(csvText, engineKey: "vulkan-optimizer", asOf: "2026-06-18");
 ```
+
+## Portfolio X-ray usage
+
+```csharp
+using Auspicia.Engine;
+
+var headers = new Dictionary<string, string>();
+if (Environment.GetEnvironmentVariable("CF_ACCESS_CLIENT_ID") is { Length: > 0 } cfId)
+    headers["CF-Access-Client-Id"] = cfId;
+if (Environment.GetEnvironmentVariable("CF_ACCESS_CLIENT_SECRET") is { Length: > 0 } cfSecret)
+    headers["CF-Access-Client-Secret"] = cfSecret;
+
+using var xray = new AuspiciaXrayClient(
+    baseUrl: "https://app.auspicia.io/api",
+    bearerToken: Environment.GetEnvironmentVariable("AUSPICIA_API_TOKEN"),
+    defaultHeaders: headers);
+
+XrayBulkImportResult imported = await xray.BulkImportAsync(new[]
+{
+    new XrayPortfolioImport
+    {
+        Name = "LampShade historical portfolio",
+        Source = "desk",
+        AllocationsCsv = File.ReadAllText("PortfolioAllocations.csv"),
+        PerformanceCsv = File.ReadAllText("PortfolioPerformance.csv"),
+        InvestorPortfolioId = "optional-external-id",
+    },
+});
+
+if (imported.HasFailures)
+{
+    foreach (var e in imported.Errors)
+        Console.WriteLine($"item {e.Index} failed ({e.Status}): {e.Detail}");
+}
+
+foreach (var item in imported.Imported)
+{
+    var portfolioId = item.Portfolio?.Id;
+    if (portfolioId is null) continue;
+    var analysis = await xray.StartAnalysisAsync(
+        portfolioId,
+        new XrayAnalysisRequest { ThresholdPct = 10, TopN = 8 });
+    Console.WriteLine($"analysis queued: {analysis.AnalysisId}");
+}
+```
+
+### X-ray error handling
+
+- `201 Created` and `207 Multi-Status` return `XrayBulkImportResult`; inspect `Errors` for item-level
+  failures and retry only those fixed items.
+- `400`, `413`, and request-level `422` throw `XrayRequestException`.
+- `401` / `403` throw `XrayAuthException`.
+- `5xx`, network errors, and timeouts are retried with exponential backoff, then throw
+  `XrayIngestException` if still failing.
 
 ## Run the sample
 

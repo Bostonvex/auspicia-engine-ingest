@@ -21,7 +21,7 @@ guide that matches what you are loading:
 | **[Checksum spec](docs/CHECKSUM.md)** | Language-stable integrity algorithm for daily engine runs. |
 | **[JSON Schema](schema/envelope.schema.json)** | Machine-readable daily engine-run envelope contract. |
 | **[Reference vectors](schema/checksum-test-vectors.json)** | Frozen checksum test cases every client must reproduce byte-for-byte. |
-| **[C# client](clients/csharp/)** | .NET 8 client for daily engine-run submission. |
+| **[C# client](clients/csharp/)** | .NET 8 client for daily engine-run submission and X-ray bulk import. |
 
 ---
 
@@ -156,8 +156,8 @@ clients/
 
 - It is not a trading/order API.
 - It is not the Auspicia application source tree.
-- The C# client currently targets daily engine-run submission; X-ray ingestion is documented as a direct
-  HTTPS JSON contract.
+- The C# client includes helpers for daily engine-run submission and Portfolio X-ray bulk import. It does
+  not place trades or call broker/order APIs.
 
 ## Support & licence
 

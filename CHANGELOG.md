@@ -13,6 +13,8 @@ All notable changes to the Auspicia engine ingestion contract and client kit.
   and `primary`/`nested` episode kinds.
 - Refreshed the README so the repo presents both daily engine-run ingestion and Portfolio X-ray historical
   imports as first-class integration paths.
+- Added `AuspiciaXrayClient` for C# callers, with typed `201`/`207` bulk import results, request/auth/ingest
+  exceptions, service-header support, and retry handling for transient failures.
 
 ## [1.0.0] — 2026-07-03
 
