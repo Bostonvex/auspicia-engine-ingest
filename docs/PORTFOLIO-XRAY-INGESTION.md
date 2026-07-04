@@ -277,6 +277,18 @@ jq -n \
 If your API host is protected by Cloudflare Access or another service-auth layer, include the headers your
 Auspicia contact provided.
 
+### C# Helper
+
+The C# client includes `AuspiciaXrayClient`, which wraps this same endpoint and returns `XrayBulkImportResult`
+for both `201 Created` and `207 Multi-Status`. It exposes per-item failures as `Errors[]` and throws typed
+exceptions for request-level failures:
+
+- `XrayRequestException` for `400`, `413`, and request-level `422`.
+- `XrayAuthException` for `401` / `403`.
+- `XrayIngestException` for exhausted `5xx`, network, or timeout failures.
+
+See [clients/csharp](../clients/csharp/) for usage.
+
 ---
 
 ## 7. Operational Notes

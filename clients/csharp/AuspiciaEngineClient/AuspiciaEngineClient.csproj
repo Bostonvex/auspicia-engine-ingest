@@ -10,7 +10,7 @@
     <PackageId>Auspicia.Engine.Client</PackageId>
     <Version>1.0.0</Version>
     <Authors>Auspicia Intelligence</Authors>
-    <Description>Client library for the Auspicia engine ingestion API — submit daily optimizer runs (idempotent, checksum-verified, retrying).</Description>
+    <Description>Client library for Auspicia ingestion APIs — submit daily optimizer runs and bulk-load Portfolio X-ray historical CSVs.</Description>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
