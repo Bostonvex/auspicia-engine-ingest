@@ -6,13 +6,15 @@ A small .NET 8 library for Auspicia machine-to-machine ingestion:
 - `AuspiciaXrayClient` discovers allowed ingestion organizations and bulk-loads historical allocation/NAV
   CSVs into Portfolio X-ray.
 
-The engine client handles the envelope shape, integrity **checksum** (including parameters), **bearer auth**,
-**idempotency**, and **retry/backoff**. The X-ray client handles `201`/`207` bulk import responses,
-per-item errors, request-level failures, optional service bearer auth, and optional Cloudflare Access headers.
+The engine client handles the envelope shape, integrity **checksum** (including parameters), **API-key bearer
+auth**, **idempotency**, and **retry/backoff**. The X-ray client handles `201`/`207` bulk import responses,
+per-item errors, request-level failures, optional API-key bearer auth, and optional Cloudflare Access headers.
 Pairs with the [integration guide](../../docs/INTEGRATION-GUIDE.md) and
 [Portfolio X-ray ingestion guide](../../docs/PORTFOLIO-XRAY-INGESTION.md).
 
 - **Target:** .NET 8. No external dependencies (uses `System.Text.Json` + `HttpClient`).
+- **Native AOT:** JSON uses source-generated metadata and `EngineJsonValue` for dynamic params; no
+  reflection-based `System.Text.Json` contract discovery is required.
 - **Layout:** `AuspiciaEngineClient/` (the library) · `Sample/` (a runnable console example) ·
   `Tests/` (a checksum-parity test against the shared reference vectors).
 
@@ -34,7 +36,7 @@ using System.Linq;
 
 using var client = new AuspiciaEngineClient(
     baseUrl: "https://app.auspicia.io/api",   // provisioned per-integration
-    token:   Environment.GetEnvironmentVariable("AUSPICIA_ENGINE_TOKEN")!);
+    token:   Environment.GetEnvironmentVariable("AUSPICIA_API_KEY")!);
 
 var run = new EngineRun
 {
@@ -52,9 +54,9 @@ var run = new EngineRun
     Positions = new List<EnginePosition>
     {
         new() { Ticker = "AAPL", Weight =  4.10, Score =  0.62, Rank = 1,
-                Params = new Dictionary<string, object> { ["momentum"] =  0.73, ["conviction"] = 8, ["regime"] = "risk_on"  } },
+                Params = new Dictionary<string, EngineJsonValue> { ["momentum"] =  0.73, ["conviction"] = 8, ["regime"] = "risk_on"  } },
         new() { Ticker = "NVDA", Weight = -3.25, Score = -0.48, Rank = 2,
-                Params = new Dictionary<string, object> { ["momentum"] = -0.11, ["conviction"] = 3, ["regime"] = "risk_off" } },
+                Params = new Dictionary<string, EngineJsonValue> { ["momentum"] = -0.11, ["conviction"] = 3, ["regime"] = "risk_off" } },
     },
 };
 
@@ -75,6 +77,9 @@ foreach (var p in await client.GetParametersAsync("vulkan-optimizer"))
 - **Envelope + checksum:** wraps your `EngineRun` in the canonical envelope, sets `idempotencyKey` to
   `RunId` (override via the argument), and attaches the integrity checksum (`EngineChecksum.Compute`) —
   including declared parameters, byte-identical to the server.
+- **API-key auth:** sends `Authorization: Bearer <key>`. For daily engine runs, use a key with
+  `engine-runs:write` or `engine-runs:validate` and an `engineKeys` allowlist that includes your
+  `EngineKey`. Legacy `eng_...` tokens still work on these routes during migration.
 - **Idempotency:** re-submitting the same run returns the stored run with `Deduped = true`. Retrying after a
   network failure is always safe.
 - **Retries:** transient failures (5xx, network, timeout) are retried with exponential backoff
@@ -84,8 +89,8 @@ foreach (var p in await client.GetParametersAsync("vulkan-optimizer"))
 
 ### Parameters
 Declare parameters in `EngineRun.ParameterDefs`; attach values per name in `EnginePosition.Params`
-(`Dictionary<string, object>`). Values can be `double`, `int`/`long`, `bool`, `string`, a numeric vector
-(`double[]` / `IReadOnlyList<double>`), or a nested object for a `json` param. See
+(`Dictionary<string, EngineJsonValue>`). Values can be `double`, `int`/`long`, `bool`, `string`, a numeric
+vector (`double[]`), or a nested `Dictionary<string, EngineJsonValue>` for a `json` param. See
 [Dynamic parameters](../../docs/PARAMETERS.md).
 
 ### CSV (legacy, weights-only)
@@ -106,7 +111,7 @@ if (Environment.GetEnvironmentVariable("CF_ACCESS_CLIENT_SECRET") is { Length: >
 
 using var xray = new AuspiciaXrayClient(
     baseUrl: "https://app.auspicia.io/api",
-    bearerToken: Environment.GetEnvironmentVariable("AUSPICIA_API_TOKEN"),
+    bearerToken: Environment.GetEnvironmentVariable("AUSPICIA_API_KEY"),
     defaultHeaders: headers);
 
 XrayIngestionTargetsResult targets = await xray.ListIngestionTargetsAsync();
@@ -143,6 +148,11 @@ foreach (var item in imported.Imported)
 }
 ```
 
+Use an API key with `orgs:read` to call `ListIngestionTargetsAsync()` and `xray:write` to call
+`BulkImportAsync()`. Client-scoped API keys currently cover X-ray ingestion, not X-ray read or analysis
+control. `StartAnalysisAsync()` is provided for operator/app-auth contexts; do not assume an API key can use
+it until Auspicia exposes and documents `xray:read`.
+
 ### X-ray error handling
 
 - `201 Created` and `207 Multi-Status` return `XrayBulkImportResult`; inspect `Errors` for item-level
@@ -155,7 +165,7 @@ foreach (var item in imported.Imported)
 ## Run the sample
 
 ```bash
-export AUSPICIA_ENGINE_TOKEN=eng_staging_xxxxx
+export AUSPICIA_API_KEY=ak_live_xxxxx
 export AUSPICIA_BASE_URL=https://staging.auspicia.io/api   # optional; defaults to production
 dotnet run --project Sample
 ```

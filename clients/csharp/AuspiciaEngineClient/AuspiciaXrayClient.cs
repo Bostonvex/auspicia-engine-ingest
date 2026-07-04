@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -21,7 +22,7 @@ public sealed class AuspiciaXrayClient : IDisposable
     private readonly TimeSpan _baseDelay;
 
     /// <param name="baseUrl">e.g. "https://app.auspicia.io/api".</param>
-    /// <param name="bearerToken">Optional Auspicia API/service bearer token. Omit if auth is already on httpClient.</param>
+    /// <param name="bearerToken">Optional Auspicia API key bearer token. Omit if auth is already on httpClient.</param>
     /// <param name="httpClient">Optional shared HttpClient; one is created + disposed if null.</param>
     /// <param name="defaultHeaders">Optional extra headers, e.g. Cloudflare Access service-token headers.</param>
     /// <param name="maxRetries">Retry budget for transport errors and 5xx responses.</param>
@@ -83,7 +84,7 @@ public sealed class AuspiciaXrayClient : IDisposable
         if (request is null) throw new ArgumentNullException(nameof(request));
         using var resp = await SendAsync(HttpMethod.Post, "xray/portfolios:bulk", () => JsonContent(request), ct)
             .ConfigureAwait(false);
-        return (await ReadAsync<XrayBulkImportResult>(resp, ct, 201, 207).ConfigureAwait(false))!;
+        return (await ReadAsync(resp, ct, AuspiciaJsonContext.Default.XrayBulkImportResult, 201, 207).ConfigureAwait(false))!;
     }
 
     /// <summary>
@@ -94,7 +95,7 @@ public sealed class AuspiciaXrayClient : IDisposable
     {
         using var resp = await SendAsync(HttpMethod.Get, "orgs/ingestion-targets", null, ct)
             .ConfigureAwait(false);
-        return (await ReadAsync<XrayIngestionTargetsResult>(resp, ct, 200).ConfigureAwait(false))!;
+        return (await ReadAsync(resp, ct, AuspiciaJsonContext.Default.XrayIngestionTargetsResult, 200).ConfigureAwait(false))!;
     }
 
     /// <summary>Start an X-ray analysis job after a successful import. Defaults are server-side (topN=8).</summary>
@@ -107,11 +108,14 @@ public sealed class AuspiciaXrayClient : IDisposable
         var path = $"xray/portfolios/{Uri.EscapeDataString(portfolioId)}/analyses";
         using var resp = await SendAsync(HttpMethod.Post, path, () => JsonContent(request ?? new XrayAnalysisRequest()), ct)
             .ConfigureAwait(false);
-        return (await ReadAsync<XrayStartAnalysisResult>(resp, ct, 202).ConfigureAwait(false))!;
+        return (await ReadAsync(resp, ct, AuspiciaJsonContext.Default.XrayStartAnalysisResult, 202).ConfigureAwait(false))!;
     }
 
-    private static StringContent JsonContent(object body) =>
-        new(JsonSerializer.Serialize(body, AuspiciaEngineClient.Json), Encoding.UTF8, "application/json");
+    private static StringContent JsonContent(XrayBulkImportRequest body) =>
+        new(JsonSerializer.Serialize(body, AuspiciaJsonContext.Default.XrayBulkImportRequest), Encoding.UTF8, "application/json");
+
+    private static StringContent JsonContent(XrayAnalysisRequest body) =>
+        new(JsonSerializer.Serialize(body, AuspiciaJsonContext.Default.XrayAnalysisRequest), Encoding.UTF8, "application/json");
 
     // Retries transport errors and 5xx. The final 5xx response is returned to ReadAsync so callers get
     // the server body in XrayIngestException.ResponseBody.
@@ -140,14 +144,18 @@ public sealed class AuspiciaXrayClient : IDisposable
               ?? new XrayIngestException($"request failed after {_maxRetries + 1} attempts: {last?.Message}", 0, inner: last);
     }
 
-    private static async Task<T?> ReadAsync<T>(HttpResponseMessage resp, CancellationToken ct, params int[] okStatuses)
+    private static async Task<T?> ReadAsync<T>(
+        HttpResponseMessage resp,
+        CancellationToken ct,
+        JsonTypeInfo<T> jsonTypeInfo,
+        params int[] okStatuses)
     {
         var text = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         var code = (int)resp.StatusCode;
         foreach (var ok in okStatuses)
         {
             if (code == ok)
-                return JsonSerializer.Deserialize<T>(text, AuspiciaEngineClient.Json);
+                return JsonSerializer.Deserialize(text, jsonTypeInfo);
         }
         if (code is 401 or 403)
             throw new XrayAuthException($"authentication failed ({code}): {DetailOrBody(text)}", code, text);
@@ -158,7 +166,7 @@ public sealed class AuspiciaXrayClient : IDisposable
 
     private static ProblemDetails? TryProblem(string text)
     {
-        try { return JsonSerializer.Deserialize<ProblemDetails>(text, AuspiciaEngineClient.Json); }
+        try { return JsonSerializer.Deserialize(text, AuspiciaJsonContext.Default.ProblemDetails); }
         catch { return null; }
     }
 

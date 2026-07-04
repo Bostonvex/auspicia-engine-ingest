@@ -10,7 +10,7 @@ public class EngineIngestException : Exception
         : base(message, inner) => StatusCode = statusCode;
 }
 
-/// <summary>401 / 403 — the bearer token is missing, invalid, or scoped to a different engineKey. Terminal.</summary>
+/// <summary>401 / 403 — the API key is missing, invalid, or scoped to a different engineKey. Terminal.</summary>
 public sealed class EngineAuthException : EngineIngestException
 {
     public EngineAuthException(string message, int statusCode) : base(message, statusCode) { }

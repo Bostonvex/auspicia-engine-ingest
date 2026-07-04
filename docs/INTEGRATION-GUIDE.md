@@ -15,10 +15,10 @@ with the [quick start](QUICKSTART.md).
 | | |
 |---|---|
 | **Base URL** | `https://app.auspicia.io/api` (provisioned per-integration; a staging URL is issued for testing) |
-| **Engine auth** | `Authorization: Bearer <engine-token>` — a scoped token we issue you, tied to your `engineKey` |
+| **API-key auth** | `Authorization: Bearer <api-key>` — a client-scoped key we issue you, tied to one org and explicit scopes |
 | **Submit a run** | `POST /v1/engine-runs` (JSON) or `POST /v1/engine-runs:csv` (CSV) |
 | **Import historical portfolios** | `POST /xray/portfolios:bulk` (separate Portfolio X-ray contract) |
-| **X-ray auth** | Authenticated Auspicia API/service identity; see the X-ray guide for details |
+| **X-ray auth** | Client-scoped API key with `orgs:read` and `xray:write`; see the X-ray guide for details |
 | **Test without writing** | `POST /v1/engine-runs:validate` (dry-run — validate + price, no persistence) |
 | **Discover parameters** | `GET /v1/engine-parameters` |
 | **Idempotent** | Yes — safe to retry; re-submitting the same `idempotencyKey` returns the stored run, `deduped: true` |
@@ -33,26 +33,51 @@ Use the separate [Portfolio X-ray ingestion guide](PORTFOLIO-XRAY-INGESTION.md).
 
 ### Network access (Cloudflare Access)
 
-The API host may sit behind **Cloudflare Access**. In addition to your engine bearer token, your machine
+The API host may sit behind **Cloudflare Access**. In addition to your Auspicia API key, your machine
 then passes Access using a **Cloudflare Access service token** — we provision one and give you a
 `CF-Access-Client-Id` + `CF-Access-Client-Secret` pair to send as headers on every request. (Alternatively
-we issue a dedicated ingest hostname that bypasses Access and relies on the bearer token alone — we'll tell
+we issue a dedicated ingest hostname that bypasses Access and relies on the API key alone — we'll tell
 you which applies.) The reference client accepts these via a preconfigured `HttpClient`.
 
 ---
 
 ## 2. Authentication
 
-Every request carries a bearer token we issue you:
+Every protected machine-to-machine ingest request carries a bearer token we issue you:
 
 ```
-Authorization: Bearer eng_live_xxxxxxxxxxxxxxxxxxxxxxxx
+Authorization: Bearer ak_live_xxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-- The token is **scoped to your `engineKey`** (e.g. `vulkan-optimizer`). Submitting a run whose
-  `engineKey` doesn't match your token → `403`.
-- Tokens are compared in constant time. Keep them secret (env var / secrets manager); rotate on request.
+- Client-scoped API keys belong to exactly one organization. Use one key per client org, for example one
+  LampShade key for `targetOrgId=lampshade`.
+- Daily engine-run keys must carry `engine-runs:write` for submit/CSV/replay or `engine-runs:validate` for
+  dry-run only. A write key may also validate.
+- Daily engine-run keys also have an `engineKeys` allowlist. Submitting a run whose `engineKey` is not on
+  the key returns `403`.
+- Portfolio X-ray import keys need `orgs:read` plus `xray:write`; daily import workflow keys need
+  `imports:daily`.
+- Keys are shown once and stored hashed at rest. Keep them secret (env var / secrets manager); rotate by
+  asking Auspicia to issue a replacement and revoke the old key.
 - Missing/malformed token → `401`. If ingestion isn't yet enabled for your account → `503`.
+
+Legacy `eng_...` engine tokens remain supported for daily engine-run routes during migration, but new
+integrations should use API keys. See [Client-scoped API keys](API-KEYS.md) for the full endpoint scope
+table, including X-ray and daily import routes.
+
+### Scope requirements
+
+| Endpoint | API-key scope |
+|---|---|
+| `POST /v1/engine-runs` | `engine-runs:write` plus matching `engineKeys` |
+| `POST /v1/engine-runs:csv` | `engine-runs:write` plus matching `engineKeys` |
+| `POST /v1/engine-runs:validate` | `engine-runs:validate`, or `engine-runs:write` |
+| `POST /v1/deadletter/{id}:replay` | `engine-runs:write` plus matching payload `engineKey` |
+| `GET /orgs/ingestion-targets` | `orgs:read` |
+| `POST /xray/portfolios:bulk` | `xray:write` |
+| `POST /imports/daily` and `/imports/daily/jobs` | `imports:daily` |
+
+`xray:read` is not exposed yet; X-ray read and analysis routes still use the app/operator identity model.
 
 ---
 
@@ -216,7 +241,7 @@ See [Portfolio X-ray ingestion](PORTFOLIO-XRAY-INGESTION.md) for the full reques
 Admin-triggered daily portfolio imports (`POST /imports/daily` and `POST /imports/daily/jobs`) use the
 same organization targeting convention: discover allowed orgs with `GET /orgs/ingestion-targets`, then send
 top-level `targetOrgId` next to the `portfolio`, `run`, `researchLimit`, and `force` fields. These admin
-routes are not engine-token routes.
+routes are API-key routes when called by a service integration; use a key with `imports:daily`.
 
 ---
 
@@ -283,7 +308,7 @@ can diff.
 | `200` | deduped / dry-run ok | none |
 | `201` | accepted | none |
 | `401` | missing/invalid token | fix auth |
-| `403` | token scoped to a different `engineKey` | fix engineKey/token |
+| `403` | wrong scope, org, or `engineKey` for this API key | fix key scope, target org, or engineKey |
 | `422` | invalid envelope (validation / checksum / undeclared param / type conflict) | fix payload — **do not retry unchanged** |
 | `503` | ingestion not configured / DB unavailable | retry with backoff |
 
@@ -318,7 +343,7 @@ dead-lettered.)
 
 ```bash
 BASE=https://app.auspicia.io/api
-TOKEN=eng_live_xxxxx
+TOKEN=ak_live_xxxxx
 
 # 1) dry-run
 curl -sS -X POST "$BASE/v1/engine-runs:validate" \
@@ -338,15 +363,15 @@ curl -sS "$BASE/v1/engine-parameters?engineKey=vulkan-optimizer" | jq
 
 ## 11. Going live — checklist
 
-1. We issue you a **staging base URL + token**; you `:validate` a real run and confirm `valid: true`.
+1. We issue you a **staging base URL + API key**; you `:validate` a real run and confirm `valid: true`.
 2. Confirm your **checksum** matches the `checksum` returned by `:validate` (and the
    [reference vectors](../schema/checksum-test-vectors.json)).
 3. If you send parameters: declare them, `:validate`, and confirm `coercionWarnings` is empty and
    `GET /v1/engine-parameters` shows the expected types.
 4. Submit to **staging** `/v1/engine-runs`; confirm `201` then a retry returns `200 deduped`.
-5. We issue the **production** token; switch the base URL. Schedule your daily push (idempotent, so a cron
+5. We issue the **production** API key; switch the base URL. Schedule your daily push (idempotent, so a cron
    that retries on failure is safe).
 6. Alert on any non-`2xx`. `422` → your bug (check `detail`); `5xx` → retry, then page us if persistent.
 
-Questions / token requests: your Auspicia integration contact. The reference client is in
+Questions / API-key requests: your Auspicia integration contact. The reference client is in
 [`clients/csharp/`](../clients/csharp/README.md).

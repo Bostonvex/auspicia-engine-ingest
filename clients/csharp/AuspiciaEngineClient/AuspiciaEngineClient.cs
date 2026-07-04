@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -25,12 +26,7 @@ namespace Auspicia.Engine;
 public sealed class AuspiciaEngineClient : IDisposable
 {
     /// <summary>The exact JSON options the API expects (camelCase, omit nulls).</summary>
-    public static readonly JsonSerializerOptions Json = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    };
+    public static readonly JsonSerializerOptions Json = AuspiciaJsonContext.Default.Options;
 
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
@@ -38,7 +34,7 @@ public sealed class AuspiciaEngineClient : IDisposable
     private readonly TimeSpan _baseDelay;
 
     /// <param name="baseUrl">e.g. "https://app.auspicia.io/api".</param>
-    /// <param name="token">the scoped engine bearer token issued to you.</param>
+    /// <param name="token">The API key bearer token issued to you. Legacy engine tokens also work on engine-run routes.</param>
     /// <param name="httpClient">optional shared HttpClient; one is created + disposed if null.</param>
     /// <param name="maxRetries">transient-failure retry budget (per call).</param>
     public AuspiciaEngineClient(string baseUrl, string token, HttpClient? httpClient = null, int maxRetries = 4)
@@ -69,7 +65,7 @@ public sealed class AuspiciaEngineClient : IDisposable
     {
         var body = BuildEnvelope(run);
         using var resp = await SendAsync(HttpMethod.Post, "v1/engine-runs:validate", () => JsonContent(body), ct).ConfigureAwait(false);
-        return (await ReadAsync<ValidateResult>(resp, ct).ConfigureAwait(false))!;
+        return (await ReadAsync(resp, ct, AuspiciaJsonContext.Default.ValidateResult).ConfigureAwait(false))!;
     }
 
     /// <summary>Submit a run. Idempotent on (engineKey, idempotencyKey) — retrying the same run is safe.</summary>
@@ -77,7 +73,7 @@ public sealed class AuspiciaEngineClient : IDisposable
     {
         var body = BuildEnvelope(run, idempotencyKey);
         using var resp = await SendAsync(HttpMethod.Post, "v1/engine-runs", () => JsonContent(body), ct).ConfigureAwait(false);
-        return (await ReadAsync<IngestResult>(resp, ct).ConfigureAwait(false))!;
+        return (await ReadAsync(resp, ct, AuspiciaJsonContext.Default.IngestResult).ConfigureAwait(false))!;
     }
 
     /// <summary>Submit a legacy TradeWeights CSV (first column = date, remaining columns = signed weights).</summary>
@@ -86,14 +82,14 @@ public sealed class AuspiciaEngineClient : IDisposable
         var path = $"v1/engine-runs:csv?engineKey={Uri.EscapeDataString(engineKey)}"
                    + (asOf is null ? "" : $"&asOf={Uri.EscapeDataString(asOf)}");
         using var resp = await SendAsync(HttpMethod.Post, path, () => new StringContent(csv, Encoding.UTF8, "text/csv"), ct).ConfigureAwait(false);
-        return (await ReadAsync<IngestResult>(resp, ct).ConfigureAwait(false))!;
+        return (await ReadAsync(resp, ct, AuspiciaJsonContext.Default.IngestResult).ConfigureAwait(false))!;
     }
 
     /// <summary>Latest accepted optimizer weight for a symbol (raw JSON).</summary>
     public async Task<JsonElement> GetLatestAsync(string symbol, CancellationToken ct = default)
     {
         using var resp = await SendAsync(HttpMethod.Get, $"v1/securities/{Uri.EscapeDataString(symbol)}/optimizer/latest", null, ct).ConfigureAwait(false);
-        return await ReadAsync<JsonElement>(resp, ct).ConfigureAwait(false);
+        return await ReadJsonElementAsync(resp, ct).ConfigureAwait(false);
     }
 
     /// <summary>Discover the parameters registered for an engine (the producer-driven registry). Handy to
@@ -102,17 +98,12 @@ public sealed class AuspiciaEngineClient : IDisposable
     {
         var path = "v1/engine-parameters" + (engineKey is null ? "" : $"?engineKey={Uri.EscapeDataString(engineKey)}");
         using var resp = await SendAsync(HttpMethod.Get, path, null, ct).ConfigureAwait(false);
-        var wrap = await ReadAsync<ParameterListResult>(resp, ct).ConfigureAwait(false);
+        var wrap = await ReadAsync(resp, ct, AuspiciaJsonContext.Default.ParameterListResult).ConfigureAwait(false);
         return wrap?.Parameters ?? Array.Empty<ParameterInfo>();
     }
 
-    private sealed record ParameterListResult
-    {
-        public IReadOnlyList<ParameterInfo>? Parameters { get; init; }
-    }
-
-    private static StringContent JsonContent(object body) =>
-        new(JsonSerializer.Serialize(body, Json), Encoding.UTF8, "application/json");
+    private static StringContent JsonContent(EngineEnvelope body) =>
+        new(JsonSerializer.Serialize(body, AuspiciaJsonContext.Default.EngineEnvelope), Encoding.UTF8, "application/json");
 
     // Sends with exponential backoff on transport errors + 5xx. 2xx/4xx are returned as-is (terminal);
     // the content factory is re-invoked per attempt because HttpContent cannot be re-sent.
@@ -139,17 +130,31 @@ public sealed class AuspiciaEngineClient : IDisposable
               ?? new EngineIngestException($"request failed after {_maxRetries + 1} attempts: {last?.Message}", 0, last);
     }
 
-    private static async Task<T?> ReadAsync<T>(HttpResponseMessage resp, CancellationToken ct)
+    private static async Task<T?> ReadAsync<T>(HttpResponseMessage resp, CancellationToken ct, JsonTypeInfo<T> jsonTypeInfo)
     {
         var text = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         var code = (int)resp.StatusCode;
         if (code is 200 or 201)
-            return JsonSerializer.Deserialize<T>(text, Json);
+            return JsonSerializer.Deserialize(text, jsonTypeInfo);
         if (code == 422)
         {
             ProblemDetails? problem = null;
-            try { problem = JsonSerializer.Deserialize<ProblemDetails>(text, Json); } catch { /* not problem+json */ }
+            try { problem = JsonSerializer.Deserialize(text, AuspiciaJsonContext.Default.ProblemDetails); } catch { /* not problem+json */ }
             throw new EngineValidationException(problem?.Detail ?? "invalid engine run", problem);
+        }
+        if (code is 401 or 403)
+            throw new EngineAuthException($"authentication failed ({code}): {text}", code);
+        throw new EngineIngestException($"unexpected status {code}: {text}", code);
+    }
+
+    private static async Task<JsonElement> ReadJsonElementAsync(HttpResponseMessage resp, CancellationToken ct)
+    {
+        var text = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        var code = (int)resp.StatusCode;
+        if (code is 200 or 201)
+        {
+            using var doc = JsonDocument.Parse(text);
+            return doc.RootElement.Clone();
         }
         if (code is 401 or 403)
             throw new EngineAuthException($"authentication failed ({code}): {text}", code);

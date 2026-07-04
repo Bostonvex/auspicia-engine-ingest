@@ -1,11 +1,12 @@
 // Minimal end-to-end sample: build a run, dry-run validate it, then submit it.
 // Run with:
-//   AUSPICIA_ENGINE_TOKEN=eng_... AUSPICIA_BASE_URL=https://staging.auspicia.io/api dotnet run
+//   AUSPICIA_API_KEY=ak_live_... AUSPICIA_BASE_URL=https://staging.auspicia.io/api dotnet run
 using Auspicia.Engine;
 
 var baseUrl = Environment.GetEnvironmentVariable("AUSPICIA_BASE_URL") ?? "https://app.auspicia.io/api";
-var token = Environment.GetEnvironmentVariable("AUSPICIA_ENGINE_TOKEN")
-            ?? throw new InvalidOperationException("Set AUSPICIA_ENGINE_TOKEN.");
+var token = Environment.GetEnvironmentVariable("AUSPICIA_API_KEY")
+            ?? Environment.GetEnvironmentVariable("AUSPICIA_ENGINE_TOKEN")
+            ?? throw new InvalidOperationException("Set AUSPICIA_API_KEY.");
 var engineKey = Environment.GetEnvironmentVariable("AUSPICIA_ENGINE_KEY") ?? "vulkan-optimizer";
 
 var asOf = DateTime.UtcNow.ToString("yyyy-MM-dd");
@@ -30,9 +31,9 @@ var run = new EngineRun
     Positions = new List<EnginePosition>
     {
         new() { Ticker = "AAPL", Weight = 4.10, Score = 0.62, Rank = 1,
-                Params = new Dictionary<string, object> { ["momentum"] = 0.73, ["conviction"] = 8, ["regime"] = "risk_on" } },
+                Params = new Dictionary<string, EngineJsonValue> { ["momentum"] = 0.73, ["conviction"] = 8, ["regime"] = "risk_on" } },
         new() { Ticker = "NVDA", Weight = -3.25, Score = -0.48, Rank = 2,
-                Params = new Dictionary<string, object> { ["momentum"] = -0.11, ["conviction"] = 3, ["regime"] = "risk_off" } },
+                Params = new Dictionary<string, EngineJsonValue> { ["momentum"] = -0.11, ["conviction"] = 3, ["regime"] = "risk_off" } },
     },
 };
 

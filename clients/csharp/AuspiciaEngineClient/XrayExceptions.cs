@@ -16,7 +16,7 @@ public class XrayIngestException : Exception
     }
 }
 
-/// <summary>401 / 403 — the API/service identity is missing, invalid, or not authorized for the tenant.</summary>
+/// <summary>401 / 403 — the API key is missing, invalid, or not authorized for the tenant.</summary>
 public sealed class XrayAuthException : XrayIngestException
 {
     public XrayAuthException(string message, int statusCode, string? responseBody = null)
