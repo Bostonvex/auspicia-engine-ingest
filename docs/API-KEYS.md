@@ -5,7 +5,7 @@ one client organization, carries explicit scopes, and is shown only once when Au
 plaintext key in your secret manager; Auspicia cannot recover it later. If a key is lost, expired, or exposed,
 ask your Auspicia contact to revoke it and issue a replacement.
 
-Send the key on every request:
+Send the key on every machine-to-machine request as an HTTP bearer token:
 
 ```http
 Authorization: Bearer ak_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -18,6 +18,29 @@ provided:
 CF-Access-Client-Id: <client-id>
 CF-Access-Client-Secret: <client-secret>
 ```
+
+For JSON requests, the complete header set should look like this:
+
+```http
+Authorization: Bearer ak_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+Content-Type: application/json
+Accept: application/json
+CF-Access-Client-Id: <client-id>          # only on Access-protected hosts
+CF-Access-Client-Secret: <client-secret>  # only on Access-protected hosts
+```
+
+For CSV engine-run submissions, use `Content-Type: text/csv` instead of JSON:
+
+```http
+Authorization: Bearer ak_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+Content-Type: text/csv
+Accept: application/json
+CF-Access-Client-Id: <client-id>          # only on Access-protected hosts
+CF-Access-Client-Secret: <client-secret>  # only on Access-protected hosts
+```
+
+Do not send the API key in `X-API-Key`, a query string, the JSON body, or a cookie. The authorization
+scheme must be exactly `Bearer` followed by one space and the plaintext key.
 
 Legacy engine tokens that start with `eng_` remain supported for daily engine-run routes during migration,
 but new integrations should use client-scoped API keys.

@@ -152,6 +152,20 @@ You will receive from your Auspicia integration contact:
   - daily import keys need `imports:daily`
 - Cloudflare Access service-token headers if the host is protected by Access
 
+Every machine-to-machine request must include the bearer API key. JSON requests should use this header
+shape:
+
+```http
+Authorization: Bearer ak_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+Content-Type: application/json
+Accept: application/json
+CF-Access-Client-Id: <client-id>          # only on Access-protected hosts
+CF-Access-Client-Secret: <client-secret>  # only on Access-protected hosts
+```
+
+Do not put the API key in a query parameter, JSON body, cookie, or `X-API-Key` header. The two
+`CF-Access-*` headers are additional network-access headers only; they do not replace `Authorization`.
+
 Legacy `eng_...` engine tokens remain supported for daily engine-run routes during migration, but new
 integrations should use API keys. See [Client-scoped API keys](docs/API-KEYS.md) for the complete scope
 table and key-handling rules.

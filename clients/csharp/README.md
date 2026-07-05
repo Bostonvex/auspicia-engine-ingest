@@ -7,8 +7,9 @@ A small .NET 8 library for Auspicia machine-to-machine ingestion:
   CSVs into Portfolio X-ray.
 
 The engine client handles the envelope shape, integrity **checksum** (including parameters), **API-key bearer
-auth**, **idempotency**, and **retry/backoff**. The X-ray client handles `201`/`207` bulk import responses,
-per-item errors, request-level failures, optional API-key bearer auth, and optional Cloudflare Access headers.
+auth**, optional Cloudflare Access headers, **idempotency**, and **retry/backoff**. The X-ray client handles
+`201`/`207` bulk import responses, per-item errors, request-level failures, optional API-key bearer auth,
+and optional Cloudflare Access headers.
 Pairs with the [integration guide](../../docs/INTEGRATION-GUIDE.md) and
 [Portfolio X-ray ingestion guide](../../docs/PORTFOLIO-XRAY-INGESTION.md).
 
@@ -34,9 +35,16 @@ dotnet pack  AuspiciaEngineClient   # -> Auspicia.Engine.Client.1.0.0.nupkg
 using Auspicia.Engine;
 using System.Linq;
 
+var headers = new Dictionary<string, string>();
+if (Environment.GetEnvironmentVariable("CF_ACCESS_CLIENT_ID") is { Length: > 0 } cfId)
+    headers["CF-Access-Client-Id"] = cfId;
+if (Environment.GetEnvironmentVariable("CF_ACCESS_CLIENT_SECRET") is { Length: > 0 } cfSecret)
+    headers["CF-Access-Client-Secret"] = cfSecret;
+
 using var client = new AuspiciaEngineClient(
     baseUrl: "https://app.auspicia.io/api",   // provisioned per-integration
-    token:   Environment.GetEnvironmentVariable("AUSPICIA_API_KEY")!);
+    token:   Environment.GetEnvironmentVariable("AUSPICIA_API_KEY")!,
+    defaultHeaders: headers);
 
 var run = new EngineRun
 {
@@ -80,6 +88,8 @@ foreach (var p in await client.GetParametersAsync("vulkan-optimizer"))
 - **API-key auth:** sends `Authorization: Bearer <key>`. For daily engine runs, use a key with
   `engine-runs:write` or `engine-runs:validate` and an `engineKeys` allowlist that includes your
   `EngineKey`. Legacy `eng_...` tokens still work on these routes during migration.
+- **Network-access headers:** pass `defaultHeaders` for protected hosts, for example
+  `CF-Access-Client-Id` and `CF-Access-Client-Secret`.
 - **Idempotency:** re-submitting the same run returns the stored run with `Deduped = true`. Retrying after a
   network failure is always safe.
 - **Retries:** transient failures (5xx, network, timeout) are retried with exponential backoff
@@ -167,6 +177,9 @@ it until Auspicia exposes and documents `xray:read`.
 ```bash
 export AUSPICIA_API_KEY=ak_live_xxxxx
 export AUSPICIA_BASE_URL=https://staging.auspicia.io/api   # optional; defaults to production
+# Optional, only when your Auspicia contact says the host is behind Cloudflare Access:
+export CF_ACCESS_CLIENT_ID=...
+export CF_ACCESS_CLIENT_SECRET=...
 dotnet run --project Sample
 ```
 

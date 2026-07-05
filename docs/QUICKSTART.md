@@ -12,6 +12,16 @@ during migration. New integrations should use API keys.
 > `CF-Access-Client-Secret` service-token pair to send as headers. See the
 > [integration guide](INTEGRATION-GUIDE.md#network-access-cloudflare-access).
 
+For JSON requests, the full header block is:
+
+```http
+Authorization: Bearer ak_live_xxxxxxxx
+Content-Type: application/json
+Accept: application/json
+CF-Access-Client-Id: <client-id>          # only when the host is Access-protected
+CF-Access-Client-Secret: <client-secret>  # only when the host is Access-protected
+```
+
 ---
 
 ## 1. Save a run to `run.json`
@@ -37,11 +47,20 @@ during migration. New integrations should use API keys.
 ```bash
 BASE=https://staging.auspicia.io/api
 TOKEN=ak_live_xxxxxxxx
+# Optional; set only if your Auspicia contact gives you Cloudflare Access headers.
+CF_ACCESS_CLIENT_ID=...
+CF_ACCESS_CLIENT_SECRET=...
 
 curl -sS -X POST "$BASE/v1/engine-runs:validate" \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+  -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
   --data @run.json | jq
 ```
+
+If the host is not behind Cloudflare Access, omit only the two `CF-Access-*` lines.
 
 ```json
 { "valid": true, "positions": 2, "exposure": { "gross": 7.35, "net": 0.85, ... },
@@ -54,7 +73,11 @@ The returned `checksum` is what the server computed — handy for confirming you
 
 ```bash
 curl -sS -X POST "$BASE/v1/engine-runs" \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+  -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
   --data @run.json | jq
 ```
 

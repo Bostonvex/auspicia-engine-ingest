@@ -73,6 +73,42 @@ public class EngineClientTests
         Assert.Contains("\"explain\":{\"source\":\"native-aot\",\"rank\":1}", req.Body);
     }
 
+    [Fact]
+    public async Task Submit_sends_bearer_and_default_headers()
+    {
+        var handler = new FakeHandler(Response(201, """
+        {
+          "id": "run_1",
+          "runId": "headers-2026-07-05",
+          "engineKey": "native-engine",
+          "status": "accepted",
+          "deduped": false,
+          "positions": 1,
+          "asOf": "2026-07-05"
+        }
+        """));
+        var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.test/api/") };
+        using var client = new AuspiciaEngineClient(
+            "https://example.test/api",
+            "ak_test",
+            httpClient: http,
+            defaultHeaders: new Dictionary<string, string> { ["CF-Access-Client-Id"] = "cf-id" },
+            maxRetries: 0);
+
+        await client.SubmitAsync(new EngineRun
+        {
+            RunId = "headers-2026-07-05",
+            EngineKey = "native-engine",
+            AsOf = "2026-07-05",
+            Positions = new[] { new EnginePosition { Ticker = "AAPL", Weight = 1.0 } },
+        });
+
+        var req = handler.Requests.Single();
+        Assert.Equal("Bearer", req.Authorization?.Scheme);
+        Assert.Equal("ak_test", req.Authorization?.Parameter);
+        Assert.Equal("cf-id", req.Headers["CF-Access-Client-Id"].Single());
+    }
+
     private static HttpResponseMessage Response(int status, string json) =>
         new((HttpStatusCode)status)
         {
@@ -94,6 +130,7 @@ public class EngineClientTests
                     request.Method.Method,
                     request.RequestUri?.PathAndQuery.TrimStart('/') ?? "",
                     request.Headers.Authorization,
+                    request.Headers.ToDictionary(kv => kv.Key, kv => kv.Value.ToList()),
                     request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken)));
 
             if (_responses.Count == 0)
@@ -106,5 +143,6 @@ public class EngineClientTests
         string Method,
         string Path,
         AuthenticationHeaderValue? Authorization,
+        Dictionary<string, List<string>> Headers,
         string Body);
 }

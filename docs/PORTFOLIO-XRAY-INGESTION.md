@@ -27,6 +27,19 @@ research jobs by accident.
 > Note: this endpoint is not a legacy engine-token endpoint. For machine-to-machine X-ray ingestion, use
 > the client-scoped API key and any network-access headers your Auspicia contact provisions.
 
+Required headers for JSON bulk import:
+
+```http
+Authorization: Bearer ak_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+Content-Type: application/json
+Accept: application/json
+CF-Access-Client-Id: <client-id>          # only on Access-protected hosts
+CF-Access-Client-Secret: <client-secret>  # only on Access-protected hosts
+```
+
+The `Authorization` header is always required. Cloudflare Access headers, when provisioned, are additional
+network-access credentials; they do not replace the Auspicia API key.
+
 ---
 
 ## 2. Request Shape
@@ -87,8 +100,13 @@ Discover allowed targets before submitting:
 ```bash
 curl -sS "$BASE/orgs/ingestion-targets" \
   -H "Authorization: Bearer $AUSPICIA_API_KEY" \
+  -H "Accept: application/json" \
+  -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+  -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
   | jq
 ```
+
+If the host is not Access-protected, omit only the two `CF-Access-*` lines.
 
 Example response:
 
@@ -338,6 +356,7 @@ jq -n \
 | curl -sS -X POST "$BASE/xray/portfolios:bulk" \
     -H "Authorization: Bearer $API_KEY" \
     -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
     --data @- \
 | jq
 ```

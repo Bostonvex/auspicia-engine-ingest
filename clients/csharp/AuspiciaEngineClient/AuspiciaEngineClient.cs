@@ -38,6 +38,21 @@ public sealed class AuspiciaEngineClient : IDisposable
     /// <param name="httpClient">optional shared HttpClient; one is created + disposed if null.</param>
     /// <param name="maxRetries">transient-failure retry budget (per call).</param>
     public AuspiciaEngineClient(string baseUrl, string token, HttpClient? httpClient = null, int maxRetries = 4)
+        : this(baseUrl, token, httpClient, defaultHeaders: null, maxRetries: maxRetries)
+    {
+    }
+
+    /// <param name="baseUrl">e.g. "https://app.auspicia.io/api".</param>
+    /// <param name="token">The API key bearer token issued to you. Legacy engine tokens also work on engine-run routes.</param>
+    /// <param name="httpClient">optional shared HttpClient; one is created + disposed if null.</param>
+    /// <param name="defaultHeaders">Optional extra headers, e.g. Cloudflare Access service-token headers.</param>
+    /// <param name="maxRetries">transient-failure retry budget (per call).</param>
+    public AuspiciaEngineClient(
+        string baseUrl,
+        string token,
+        HttpClient? httpClient = null,
+        IReadOnlyDictionary<string, string>? defaultHeaders = null,
+        int maxRetries = 4)
     {
         if (string.IsNullOrWhiteSpace(baseUrl)) throw new ArgumentException("baseUrl is required", nameof(baseUrl));
         if (string.IsNullOrWhiteSpace(token)) throw new ArgumentException("token is required", nameof(token));
@@ -47,6 +62,11 @@ public sealed class AuspiciaEngineClient : IDisposable
         _http = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         _http.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        if (defaultHeaders is not null)
+        {
+            foreach (var (name, value) in defaultHeaders)
+                _http.DefaultRequestHeaders.TryAddWithoutValidation(name, value);
+        }
     }
 
     /// <summary>Wrap a run in an envelope. idempotencyKey defaults to RunId; checksum is computed by default.</summary>

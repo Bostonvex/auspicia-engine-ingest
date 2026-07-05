@@ -8,6 +8,11 @@ var token = Environment.GetEnvironmentVariable("AUSPICIA_API_KEY")
             ?? Environment.GetEnvironmentVariable("AUSPICIA_ENGINE_TOKEN")
             ?? throw new InvalidOperationException("Set AUSPICIA_API_KEY.");
 var engineKey = Environment.GetEnvironmentVariable("AUSPICIA_ENGINE_KEY") ?? "vulkan-optimizer";
+var headers = new Dictionary<string, string>();
+if (Environment.GetEnvironmentVariable("CF_ACCESS_CLIENT_ID") is { Length: > 0 } cfId)
+    headers["CF-Access-Client-Id"] = cfId;
+if (Environment.GetEnvironmentVariable("CF_ACCESS_CLIENT_SECRET") is { Length: > 0 } cfSecret)
+    headers["CF-Access-Client-Secret"] = cfSecret;
 
 var asOf = DateTime.UtcNow.ToString("yyyy-MM-dd");
 var run = new EngineRun
@@ -37,7 +42,7 @@ var run = new EngineRun
     },
 };
 
-using var client = new AuspiciaEngineClient(baseUrl, token);
+using var client = new AuspiciaEngineClient(baseUrl, token, defaultHeaders: headers);
 
 try
 {

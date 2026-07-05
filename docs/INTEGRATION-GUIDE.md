@@ -45,7 +45,7 @@ you which applies.) The reference client accepts these via a preconfigured `Http
 
 Every protected machine-to-machine ingest request carries a bearer token we issue you:
 
-```
+```http
 Authorization: Bearer ak_live_xxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
@@ -64,6 +64,33 @@ Authorization: Bearer ak_live_xxxxxxxxxxxxxxxxxxxxxxxx
 Legacy `eng_...` engine tokens remain supported for daily engine-run routes during migration, but new
 integrations should use API keys. See [Client-scoped API keys](API-KEYS.md) for the full endpoint scope
 table, including X-ray and daily import routes.
+
+### Exact request headers
+
+For JSON engine-run requests (`POST /v1/engine-runs` and `POST /v1/engine-runs:validate`), send:
+
+```http
+POST /api/v1/engine-runs HTTP/1.1
+Host: app.auspicia.io
+Authorization: Bearer ak_live_xxxxxxxxxxxxxxxxxxxxxxxx
+Content-Type: application/json
+Accept: application/json
+CF-Access-Client-Id: <client-id>
+CF-Access-Client-Secret: <client-secret>
+```
+
+Omit the two `CF-Access-*` headers only when your Auspicia contact confirms the host is not behind
+Cloudflare Access. Keep them for staging/protected hosts. The `Authorization` header is still required even
+when Cloudflare Access headers are present; Access proves the machine can reach the host, while the
+Auspicia API key proves the caller has the right org/scope/engine-key permissions.
+
+For CSV submissions (`POST /v1/engine-runs:csv`), the headers are the same except:
+
+```http
+Content-Type: text/csv
+```
+
+Do not send API keys in `X-API-Key`, query parameters, cookies, or the request body.
 
 ### Scope requirements
 
@@ -184,6 +211,20 @@ Body = the envelope. Success:
   "coercionWarnings": []
 }
 ```
+
+Minimal `curl` with all headers:
+
+```bash
+curl -sS -X POST "$BASE/v1/engine-runs" \
+  -H "Authorization: Bearer $AUSPICIA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+  -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
+  --data @run.json
+```
+
+If your host is not Access-protected, drop only the two `CF-Access-*` lines.
 
 ### `POST /v1/engine-runs:validate` — dry-run (no write)
 Same body; validates + prices the envelope **without persisting** (no dead-letter, no supersede, no
@@ -347,17 +388,25 @@ TOKEN=ak_live_xxxxx
 
 # 1) dry-run
 curl -sS -X POST "$BASE/v1/engine-runs:validate" \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
   --data @run.json | jq
 
 # 2) submit (idempotent — safe to retry on failure)
 curl -sS -X POST "$BASE/v1/engine-runs" \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
   --data @run.json | jq
 
 # 3) confirm what registered
-curl -sS "$BASE/v1/engine-parameters?engineKey=vulkan-optimizer" | jq
+curl -sS "$BASE/v1/engine-parameters?engineKey=vulkan-optimizer" \
+  -H "Accept: application/json" | jq
 ```
+
+If your host is protected by Cloudflare Access, add the two `CF-Access-*` headers shown in §2 to each
+request.
 
 ---
 
