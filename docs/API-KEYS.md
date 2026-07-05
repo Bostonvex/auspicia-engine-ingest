@@ -19,6 +19,20 @@ CF-Access-Client-Id: <client-id>
 CF-Access-Client-Secret: <client-secret>
 ```
 
+A complete request therefore carries:
+
+```http
+Authorization: Bearer ak_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+Content-Type: application/json            # text/csv for POST /v1/engine-runs:csv
+CF-Access-Client-Id: <client-id>          # only on Access-protected hosts
+CF-Access-Client-Secret: <client-secret>  # only on Access-protected hosts
+```
+
+Send the key only as a `Bearer` authorization header — never as `X-API-Key`, a query parameter, a cookie,
+or a body field. Cloudflare Access and the API key are independent layers: Access proves the machine may
+reach the host; the key proves the caller's organization, scopes, and engine keys. Both are required on
+Access-protected hosts.
+
 Legacy engine tokens that start with `eng_` remain supported for daily engine-run routes during migration,
 but new integrations should use client-scoped API keys.
 

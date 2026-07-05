@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/csharp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      # /warnaserror keeps the library at zero warnings; the checksum-parity test asserts every
+      # reference vector byte-for-byte, so a green run means the contract still holds.
+      - run: dotnet build AuspiciaEngineClient --configuration Release /warnaserror
+      - run: dotnet test Tests --configuration Release
