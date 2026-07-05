@@ -148,6 +148,12 @@ You will receive from your Auspicia integration contact:
   - daily import keys need `imports:daily`
 - Cloudflare Access service-token headers if the host is protected by Access
 
+The Iris-to-Aviana rebrand affects human-facing app links, not the machine-to-machine API paths in this
+kit. Continue to use the provisioned API base URL for `POST /v1/engine-runs`, X-ray bulk import, and daily
+imports. When an operator needs to inspect the resulting research/advice workflow in the web app, use
+Aviana routes such as `https://app.auspicia.io/#/aviana/report` or `https://app.auspicia.io/#/aviana/flow`.
+Legacy `/#/iris/*` bookmarks currently redirect, but new integration material should not publish Iris URLs.
+
 Legacy `eng_...` engine tokens remain supported for daily engine-run routes during migration, but new
 integrations should use API keys. See [Client-scoped API keys](docs/API-KEYS.md) for the complete scope
 table and key-handling rules.

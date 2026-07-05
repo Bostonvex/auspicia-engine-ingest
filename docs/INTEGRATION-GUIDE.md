@@ -28,6 +28,14 @@ with the [quick start](QUICKSTART.md).
 **Recommended flow:** `validate` once during onboarding → `submit` daily → on network error, **retry the
 same envelope** (idempotency makes this safe).
 
+### Aviana URLs and API stability
+
+The Iris-to-Aviana rebrand changed human-facing application routes, not the ingest API paths. Continue using
+your provisioned API base URL for all machine-to-machine calls in this guide. New runbooks and partner
+material should link operators to Aviana app routes such as `https://app.auspicia.io/#/aviana/report` and
+`https://app.auspicia.io/#/aviana/flow`. Legacy `/#/iris/*` bookmarks redirect for compatibility, but should
+not be used in new integration material.
+
 Need to load historical allocation/NAV files for drawdown attribution instead of a daily optimizer signal?
 Use the separate [Portfolio X-ray ingestion guide](PORTFOLIO-XRAY-INGESTION.md).
 

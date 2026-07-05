@@ -8,6 +8,11 @@ Get from zero to an accepted run in about five minutes. You need two things from
 Existing integrations with a legacy `eng_...` engine token can keep using it on daily engine-run routes
 during migration. New integrations should use API keys.
 
+The Aviana rebrand changed web-app routes, not the ingest API base path. Use the base URL your contact
+provisions for API calls. If you need to open the resulting research/advice workflow in the app, use
+`https://app.auspicia.io/#/aviana/report` or `https://app.auspicia.io/#/aviana/flow`; do not publish old
+`/#/iris/*` links in new integration runbooks.
+
 > If the host is behind Cloudflare Access, you'll also get a `CF-Access-Client-Id` /
 > `CF-Access-Client-Secret` service-token pair to send as headers. See the
 > [integration guide](INTEGRATION-GUIDE.md#network-access-cloudflare-access).
