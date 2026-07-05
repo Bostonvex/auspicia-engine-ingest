@@ -16,6 +16,8 @@ All notable changes to the Auspicia engine ingestion contract and client kit.
   errors, request/auth/ingest exceptions, optional service headers, and transient-failure retries.
 
 ### Changed
+- Docs now call out the Iris-to-Aviana web-route rebrand explicitly: API paths and provisioned base URLs
+  remain stable, while new operator links should use `/#/aviana/*` instead of legacy `/#/iris/*` redirects.
 - C# clients now share one internal HTTP transport. The engine client no longer discards the final 5xx
   response body (the server's `detail` reaches `EngineIngestException`), parses problem+json details
   into auth/validation errors, and accepts `defaultHeaders` (e.g. Cloudflare Access) like the X-ray

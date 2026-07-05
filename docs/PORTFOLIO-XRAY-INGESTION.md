@@ -26,6 +26,10 @@ research jobs by accident.
 
 > Auth uses client-scoped API keys; legacy `eng_` engine tokens do not work on X-ray routes. Include any
 > network-access headers your Auspicia contact provisions (e.g. Cloudflare Access).
+>
+> The Aviana rebrand affects web-app routes only. Keep using the issued API base URL for X-ray ingestion.
+> If operators inspect imported research/advice in the app, link them to `/#/aviana/report` or
+> `/#/aviana/flow`; legacy `/#/iris/*` links are redirects and should not appear in new runbooks.
 
 ---
 

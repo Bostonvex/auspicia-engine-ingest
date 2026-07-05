@@ -12,6 +12,8 @@ per-item errors, request-level failures, optional API-key bearer auth, and optio
 Pairs with the [integration guide](../../docs/INTEGRATION-GUIDE.md) and
 [Portfolio X-ray ingestion guide](../../docs/PORTFOLIO-XRAY-INGESTION.md).
 
+- **Aviana URLs:** the Iris-to-Aviana rebrand changed web-app routes, not these API paths. Keep using the
+  provisioned API base URL; operator links should use `/#/aviana/report` or `/#/aviana/flow`.
 - **Target:** .NET 8. No external dependencies (uses `System.Text.Json` + `HttpClient`).
 - **Native AOT:** JSON uses source-generated metadata and `EngineJsonValue` for dynamic params; no
   reflection-based `System.Text.Json` contract discovery is required.
