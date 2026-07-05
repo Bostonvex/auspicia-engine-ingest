@@ -12,6 +12,9 @@
     <Authors>Auspicia Intelligence</Authors>
     <Description>Client library for Auspicia ingestion APIs — submit daily optimizer runs and bulk-load Portfolio X-ray historical CSVs.</Description>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CS1591: the DTO records mirror the documented wire contract (docs/), and their property names
+         are the contract. Requiring an XML doc per property adds noise, not information. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 

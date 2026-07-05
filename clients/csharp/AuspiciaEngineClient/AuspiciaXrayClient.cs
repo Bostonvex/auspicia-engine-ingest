@@ -19,7 +19,6 @@ public sealed class AuspiciaXrayClient : IDisposable
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
     private readonly int _maxRetries;
-    private readonly TimeSpan _baseDelay;
 
     /// <param name="baseUrl">e.g. "https://app.auspicia.io/api".</param>
     /// <param name="bearerToken">Optional Auspicia API key bearer token. Omit if auth is already on httpClient.</param>
@@ -35,7 +34,6 @@ public sealed class AuspiciaXrayClient : IDisposable
     {
         if (string.IsNullOrWhiteSpace(baseUrl)) throw new ArgumentException("baseUrl is required", nameof(baseUrl));
         _maxRetries = Math.Max(0, maxRetries);
-        _baseDelay = TimeSpan.FromMilliseconds(250);
         _ownsHttp = httpClient is null;
         _http = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
         _http.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
@@ -119,30 +117,10 @@ public sealed class AuspiciaXrayClient : IDisposable
 
     // Retries transport errors and 5xx. The final 5xx response is returned to ReadAsync so callers get
     // the server body in XrayIngestException.ResponseBody.
-    private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, Func<HttpContent>? content, CancellationToken ct)
-    {
-        Exception? last = null;
-        for (var attempt = 0; attempt <= _maxRetries; attempt++)
-        {
-            if (attempt > 0)
-                await Task.Delay(_baseDelay * Math.Pow(2, attempt - 1), ct).ConfigureAwait(false);
-            try
-            {
-                using var req = new HttpRequestMessage(method, path);
-                if (content is not null) req.Content = content();
-                var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
-                if ((int)resp.StatusCode < 500 || attempt == _maxRetries)
-                    return resp;
-                last = new XrayIngestException($"server error {(int)resp.StatusCode}", (int)resp.StatusCode);
-                resp.Dispose();
-            }
-            catch (HttpRequestException ex) { last = ex; }
-            catch (TaskCanceledException ex) when (!ct.IsCancellationRequested) { last = ex; }
-        }
-
-        throw last as XrayIngestException
-              ?? new XrayIngestException($"request failed after {_maxRetries + 1} attempts: {last?.Message}", 0, inner: last);
-    }
+    private Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, Func<HttpContent>? content, CancellationToken ct) =>
+        HttpTransport.SendWithRetryAsync(
+            _http, method, path, content, _maxRetries,
+            (message, status, inner) => new XrayIngestException(message, status, inner: inner), ct);
 
     private static async Task<T?> ReadAsync<T>(
         HttpResponseMessage resp,
@@ -158,32 +136,10 @@ public sealed class AuspiciaXrayClient : IDisposable
                 return JsonSerializer.Deserialize(text, jsonTypeInfo);
         }
         if (code is 401 or 403)
-            throw new XrayAuthException($"authentication failed ({code}): {DetailOrBody(text)}", code, text);
+            throw new XrayAuthException($"authentication failed ({code}): {HttpTransport.DetailOrBody(text)}", code, text);
         if (code is 400 or 413 or 422)
-            throw new XrayRequestException(DetailOrBody(text), code, text, TryProblem(text));
-        throw new XrayIngestException($"unexpected status {code}: {DetailOrBody(text)}", code, text);
-    }
-
-    private static ProblemDetails? TryProblem(string text)
-    {
-        try { return JsonSerializer.Deserialize(text, AuspiciaJsonContext.Default.ProblemDetails); }
-        catch { return null; }
-    }
-
-    private static string DetailOrBody(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            return "empty response body";
-        try
-        {
-            using var doc = JsonDocument.Parse(text);
-            if (doc.RootElement.TryGetProperty("detail", out var detail))
-                return detail.ValueKind == JsonValueKind.String ? detail.GetString() ?? text : detail.GetRawText();
-            if (doc.RootElement.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String)
-                return title.GetString() ?? text;
-        }
-        catch { /* plain-text body */ }
-        return text;
+            throw new XrayRequestException(HttpTransport.DetailOrBody(text), code, text, HttpTransport.TryProblem(text));
+        throw new XrayIngestException($"unexpected status {code}: {HttpTransport.DetailOrBody(text)}", code, text);
     }
 
     public void Dispose()

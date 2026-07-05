@@ -1,6 +1,3 @@
-using System.Net;
-using System.Net.Http.Headers;
-using System.Text;
 using Auspicia.Engine;
 using Xunit;
 
@@ -11,7 +8,7 @@ public class EngineClientTests
     [Fact]
     public async Task Submit_serializes_dynamic_params_with_source_generated_json()
     {
-        var handler = new FakeHandler(Response(201, """
+        var handler = new FakeHandler(FakeHandler.Response(201, """
         {
           "id": "run_1",
           "runId": "native-2026-07-04",
@@ -73,38 +70,38 @@ public class EngineClientTests
         Assert.Contains("\"explain\":{\"source\":\"native-aot\",\"rank\":1}", req.Body);
     }
 
-    private static HttpResponseMessage Response(int status, string json) =>
-        new((HttpStatusCode)status)
-        {
-            Content = new StringContent(json, Encoding.UTF8, "application/json"),
-        };
-
-    private sealed class FakeHandler : HttpMessageHandler
+    [Fact]
+    public async Task Submit_surfaces_server_detail_when_retries_exhaust_on_5xx()
     {
-        private readonly Queue<HttpResponseMessage> _responses;
+        var handler = new FakeHandler(FakeHandler.Response(503, """{"detail":"Database unavailable."}"""));
+        var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.test/api/") };
+        using var client = new AuspiciaEngineClient("https://example.test/api", "ak_test", httpClient: http, maxRetries: 0);
 
-        public FakeHandler(params HttpResponseMessage[] responses) => _responses = new Queue<HttpResponseMessage>(responses);
+        var ex = await Assert.ThrowsAsync<EngineIngestException>(() => client.SubmitAsync(MinimalRun()));
 
-        public List<RequestCapture> Requests { get; } = [];
-
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            Requests.Add(
-                new RequestCapture(
-                    request.Method.Method,
-                    request.RequestUri?.PathAndQuery.TrimStart('/') ?? "",
-                    request.Headers.Authorization,
-                    request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken)));
-
-            if (_responses.Count == 0)
-                throw new InvalidOperationException("No fake response queued.");
-            return _responses.Dequeue();
-        }
+        Assert.Equal(503, ex.StatusCode);
+        Assert.Contains("Database unavailable.", ex.Message);   // body no longer discarded on the final attempt
     }
 
-    private sealed record RequestCapture(
-        string Method,
-        string Path,
-        AuthenticationHeaderValue? Authorization,
-        string Body);
+    [Fact]
+    public async Task Submit_sends_default_headers()
+    {
+        var handler = new FakeHandler(FakeHandler.Response(201, """{"status":"accepted","deduped":false,"positions":1}"""));
+        var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.test/api/") };
+        using var client = new AuspiciaEngineClient(
+            "https://example.test/api", "ak_test", httpClient: http, maxRetries: 0,
+            defaultHeaders: new Dictionary<string, string> { ["CF-Access-Client-Id"] = "cf-id" });
+
+        await client.SubmitAsync(MinimalRun());
+
+        Assert.Equal("cf-id", handler.Requests.Single().Headers["CF-Access-Client-Id"].Single());
+    }
+
+    private static EngineRun MinimalRun() => new()
+    {
+        RunId = "native-2026-07-04",
+        EngineKey = "native-engine",
+        AsOf = "2026-07-04",
+        Positions = new[] { new EnginePosition { Ticker = "AAPL", Weight = 4.10 } },
+    };
 }

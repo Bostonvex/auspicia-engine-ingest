@@ -24,8 +24,8 @@ research jobs by accident.
 | **Bulk size** | Up to 250 portfolios per request |
 | **Partial success** | Yes. Good items commit; malformed items return per-item errors. |
 
-> Note: this endpoint is not a legacy engine-token endpoint. For machine-to-machine X-ray ingestion, use
-> the client-scoped API key and any network-access headers your Auspicia contact provisions.
+> Auth uses client-scoped API keys; legacy `eng_` engine tokens do not work on X-ray routes. Include any
+> network-access headers your Auspicia contact provisions (e.g. Cloudflare Access).
 
 ---
 
@@ -317,23 +317,11 @@ API_KEY=ak_live_xxxxx
 #   -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID"
 #   -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET"
 
-alloc_csv=$(python3 - <<'PY'
-from pathlib import Path
-print(Path("PortfolioAllocations.csv").read_text())
-PY
-)
-
-perf_csv=$(python3 - <<'PY'
-from pathlib import Path
-print(Path("PortfolioPerformance.csv").read_text())
-PY
-)
-
 jq -n \
   --arg name "LampShade historical portfolio" \
   --arg targetOrgId "lampshade" \
-  --arg allocationsCsv "$alloc_csv" \
-  --arg performanceCsv "$perf_csv" \
+  --rawfile allocationsCsv PortfolioAllocations.csv \
+  --rawfile performanceCsv PortfolioPerformance.csv \
   '{ targetOrgId: $targetOrgId, portfolios: [{ name: $name, source: "desk", allocationsCsv: $allocationsCsv, performanceCsv: $performanceCsv }] }' \
 | curl -sS -X POST "$BASE/xray/portfolios:bulk" \
     -H "Authorization: Bearer $API_KEY" \
@@ -341,9 +329,6 @@ jq -n \
     --data @- \
 | jq
 ```
-
-If your API host is protected by Cloudflare Access or another service-auth layer, include the headers your
-Auspicia contact provided.
 
 ### C# Helper
 

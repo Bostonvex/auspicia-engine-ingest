@@ -2,7 +2,7 @@
 
 **Machine-to-machine contracts for getting quantitative signals and historical portfolios into Auspicia.**
 
-This repository now covers two related but separate ingestion paths:
+This repository covers two separate ingestion paths:
 
 | Use case | Endpoint | Use it when |
 |---|---|---|
@@ -32,12 +32,12 @@ Use this path when your engine emits one **run** per trading day. You wrap it in
 it over HTTPS:
 
 ```
-        your engine                         Auspicia
-   ┌───────────────────┐   POST /v1/engine-runs   ┌──────────────────────────────┐
-   │  runId, asOf,     │  ───────────────────────▶ │  validate → checksum → store  │
-   │  positions[],     │   Bearer <api-key>         │  → supersede prior day        │
-   │  parameterDefs[]  │  ◀─────────────────────── │  → register params            │
-   └───────────────────┘   201 accepted / 200 dedup└──────────────────────────────┘
+     your engine                                          Auspicia
+┌───────────────────┐   POST /v1/engine-runs   ┌─────────────────────────────┐
+│ runId, asOf,      │ ────────────────────────▶│ validate → checksum → store │
+│ positions[],      │     Bearer <api-key>     │ supersede the prior day     │
+│ parameterDefs[]   │ ◀────────────────────────│ register parameters         │
+└───────────────────┘  201 accepted · 200 dedup└─────────────────────────────┘
 ```
 
 - **One run per `(engineKey, asOf)` wins.** The newest accepted run supersedes the prior; history is
@@ -117,13 +117,9 @@ Portfolio X-ray ingestion accepts JSON containing one or more portfolio CSV pair
 }
 ```
 
-Multi-organization operators can call `GET /orgs/ingestion-targets` to discover which organizations their
-authenticated API key may ingest for. Client-scoped API keys return only their own organization. If you omit
-`targetOrgId`, Auspicia uses the default organization for that key. When present, `targetOrgId` must be
-top-level on the bulk request; per-item organization targeting is rejected.
-
-The same `targetOrgId` rule applies to admin-triggered daily portfolio imports (`POST /imports/daily` and
-`POST /imports/daily/jobs`) when those routes are used instead of the X-ray bulk loader.
+`targetOrgId` is optional (it defaults to the key's organization) and must be top-level when present.
+Discover the organizations a key may ingest for with `GET /orgs/ingestion-targets`. The full targeting
+rules are in [Client-scoped API keys](docs/API-KEYS.md) and the X-ray guide.
 
 `POST /xray/portfolios:bulk` returns:
 

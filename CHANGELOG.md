@@ -4,27 +4,27 @@ All notable changes to the Auspicia engine ingestion contract and client kit.
 
 ## [Unreleased]
 
-### Docs
-- Added client-scoped API-key guidance, including one-key-per-client-org semantics, endpoint scope
-  requirements, show-once key handling, LampShade examples, and legacy engine-token migration notes.
-- Updated the README, quickstart, integration guide, Portfolio X-ray guide, and C# docs to use API keys for
-  daily engine runs, X-ray bulk import, target discovery, and daily import routes.
-- Made the C# client Native AOT-friendly by switching to source-generated JSON metadata and replacing
-  dynamic `object` params with `EngineJsonValue`.
-- Documented live multi-organization ingestion targeting: `GET /orgs/ingestion-targets`, top-level
-  `targetOrgId` on X-ray bulk import and daily import routes, and the request-level `403`/`404`
-  authorization errors.
-- Added the Portfolio X-ray ingestion guide for `POST /xray/portfolios:bulk`, including the bulk JSON
-  shape, allocation/performance CSV contracts, parse-report response, partial-success semantics, and the
+### Added
+- Portfolio X-ray ingestion guide for `POST /xray/portfolios:bulk`: bulk JSON shape,
+  allocation/performance CSV contracts, parse-report response, partial-success semantics, and the
   separate analysis trigger.
-- Linked the X-ray ingestion contract from the README, quick start, and integration guide.
-- Clarified X-ray item-level error envelopes, finite `topN=8` analysis default, 0-based episode indexes,
-  and `primary`/`nested` episode kinds.
-- Refreshed the README so the repo presents both daily engine-run ingestion and Portfolio X-ray historical
-  imports as first-class integration paths.
-- Added `AuspiciaXrayClient` for C# callers, with typed `201`/`207` bulk import results, request/auth/ingest
-  exceptions, service-header support, and retry handling for transient failures.
-- Added C# X-ray helpers for org-target discovery and top-level `targetOrgId` bulk imports.
+- Client-scoped API-key guide: one-key-per-client-org semantics, the endpoint scope table, show-once
+  key handling, and legacy engine-token migration notes.
+- Multi-organization ingestion targeting: `GET /orgs/ingestion-targets`, top-level `targetOrgId` on
+  X-ray bulk import and daily import routes, and the request-level `403`/`404` authorization errors.
+- `AuspiciaXrayClient` (C#): org-target discovery, typed `201`/`207` bulk-import results with per-item
+  errors, request/auth/ingest exceptions, optional service headers, and transient-failure retries.
+
+### Changed
+- C# clients now share one internal HTTP transport. The engine client no longer discards the final 5xx
+  response body (the server's `detail` reaches `EngineIngestException`), parses problem+json details
+  into auth/validation errors, and accepts `defaultHeaders` (e.g. Cloudflare Access) like the X-ray
+  client. Public API unchanged apart from the new optional constructor parameter.
+- C# client is Native AOT-friendly: source-generated JSON metadata and `EngineJsonValue` instead of
+  dynamic `object` params.
+- Docs refreshed throughout to present daily engine runs and Portfolio X-ray imports as separate paths
+  with API-key auth; clarified X-ray item-level error envelopes, the finite `topN=8` analysis default,
+  0-based episode `idx`, and `primary`/`nested` episode kinds.
 
 ## [1.0.0] — 2026-07-03
 

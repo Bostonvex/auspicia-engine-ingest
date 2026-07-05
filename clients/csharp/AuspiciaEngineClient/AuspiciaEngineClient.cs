@@ -31,22 +31,31 @@ public sealed class AuspiciaEngineClient : IDisposable
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
     private readonly int _maxRetries;
-    private readonly TimeSpan _baseDelay;
 
     /// <param name="baseUrl">e.g. "https://app.auspicia.io/api".</param>
     /// <param name="token">The API key bearer token issued to you. Legacy engine tokens also work on engine-run routes.</param>
     /// <param name="httpClient">optional shared HttpClient; one is created + disposed if null.</param>
     /// <param name="maxRetries">transient-failure retry budget (per call).</param>
-    public AuspiciaEngineClient(string baseUrl, string token, HttpClient? httpClient = null, int maxRetries = 4)
+    /// <param name="defaultHeaders">optional extra headers, e.g. Cloudflare Access service-token headers.</param>
+    public AuspiciaEngineClient(
+        string baseUrl,
+        string token,
+        HttpClient? httpClient = null,
+        int maxRetries = 4,
+        IReadOnlyDictionary<string, string>? defaultHeaders = null)
     {
         if (string.IsNullOrWhiteSpace(baseUrl)) throw new ArgumentException("baseUrl is required", nameof(baseUrl));
         if (string.IsNullOrWhiteSpace(token)) throw new ArgumentException("token is required", nameof(token));
         _maxRetries = Math.Max(0, maxRetries);
-        _baseDelay = TimeSpan.FromMilliseconds(250);
         _ownsHttp = httpClient is null;
         _http = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         _http.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        if (defaultHeaders is not null)
+        {
+            foreach (var (name, value) in defaultHeaders)
+                _http.DefaultRequestHeaders.TryAddWithoutValidation(name, value);
+        }
     }
 
     /// <summary>Wrap a run in an envelope. idempotencyKey defaults to RunId; checksum is computed by default.</summary>
@@ -105,30 +114,12 @@ public sealed class AuspiciaEngineClient : IDisposable
     private static StringContent JsonContent(EngineEnvelope body) =>
         new(JsonSerializer.Serialize(body, AuspiciaJsonContext.Default.EngineEnvelope), Encoding.UTF8, "application/json");
 
-    // Sends with exponential backoff on transport errors + 5xx. 2xx/4xx are returned as-is (terminal);
-    // the content factory is re-invoked per attempt because HttpContent cannot be re-sent.
-    private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, Func<HttpContent>? content, CancellationToken ct)
-    {
-        Exception? last = null;
-        for (var attempt = 0; attempt <= _maxRetries; attempt++)
-        {
-            if (attempt > 0)
-                await Task.Delay(_baseDelay * Math.Pow(2, attempt - 1), ct).ConfigureAwait(false);
-            try
-            {
-                using var req = new HttpRequestMessage(method, path);
-                if (content is not null) req.Content = content();
-                var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
-                if ((int)resp.StatusCode < 500) return resp;   // terminal (2xx / 4xx)
-                last = new EngineIngestException($"server error {(int)resp.StatusCode}", (int)resp.StatusCode);
-                resp.Dispose();
-            }
-            catch (HttpRequestException ex) { last = ex; }                                        // network
-            catch (TaskCanceledException ex) when (!ct.IsCancellationRequested) { last = ex; }    // timeout
-        }
-        throw last as EngineIngestException
-              ?? new EngineIngestException($"request failed after {_maxRetries + 1} attempts: {last?.Message}", 0, last);
-    }
+    // Retries transport errors and 5xx; the final 5xx response reaches ReadAsync so the caller sees
+    // the server's error detail rather than a bare status code.
+    private Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, Func<HttpContent>? content, CancellationToken ct) =>
+        HttpTransport.SendWithRetryAsync(
+            _http, method, path, content, _maxRetries,
+            (message, status, inner) => new EngineIngestException(message, status, inner), ct);
 
     private static async Task<T?> ReadAsync<T>(HttpResponseMessage resp, CancellationToken ct, JsonTypeInfo<T> jsonTypeInfo)
     {
@@ -136,15 +127,7 @@ public sealed class AuspiciaEngineClient : IDisposable
         var code = (int)resp.StatusCode;
         if (code is 200 or 201)
             return JsonSerializer.Deserialize(text, jsonTypeInfo);
-        if (code == 422)
-        {
-            ProblemDetails? problem = null;
-            try { problem = JsonSerializer.Deserialize(text, AuspiciaJsonContext.Default.ProblemDetails); } catch { /* not problem+json */ }
-            throw new EngineValidationException(problem?.Detail ?? "invalid engine run", problem);
-        }
-        if (code is 401 or 403)
-            throw new EngineAuthException($"authentication failed ({code}): {text}", code);
-        throw new EngineIngestException($"unexpected status {code}: {text}", code);
+        throw Error(code, text);
     }
 
     private static async Task<JsonElement> ReadJsonElementAsync(HttpResponseMessage resp, CancellationToken ct)
@@ -156,9 +139,19 @@ public sealed class AuspiciaEngineClient : IDisposable
             using var doc = JsonDocument.Parse(text);
             return doc.RootElement.Clone();
         }
+        throw Error(code, text);
+    }
+
+    private static Exception Error(int code, string text)
+    {
+        if (code == 422)
+        {
+            var problem = HttpTransport.TryProblem(text);
+            return new EngineValidationException(problem?.Detail ?? HttpTransport.DetailOrBody(text), problem);
+        }
         if (code is 401 or 403)
-            throw new EngineAuthException($"authentication failed ({code}): {text}", code);
-        throw new EngineIngestException($"unexpected status {code}: {text}", code);
+            return new EngineAuthException($"authentication failed ({code}): {HttpTransport.DetailOrBody(text)}", code);
+        return new EngineIngestException($"unexpected status {code}: {HttpTransport.DetailOrBody(text)}", code);
     }
 
     public void Dispose()

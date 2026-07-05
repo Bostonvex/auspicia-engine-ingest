@@ -37,7 +37,8 @@ The API host may sit behind **Cloudflare Access**. In addition to your Auspicia 
 then passes Access using a **Cloudflare Access service token** — we provision one and give you a
 `CF-Access-Client-Id` + `CF-Access-Client-Secret` pair to send as headers on every request. (Alternatively
 we issue a dedicated ingest hostname that bypasses Access and relies on the API key alone — we'll tell
-you which applies.) The reference client accepts these via a preconfigured `HttpClient`.
+you which applies.) The reference clients accept these via the `defaultHeaders` constructor argument, or a
+preconfigured `HttpClient`.
 
 ---
 

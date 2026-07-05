@@ -79,7 +79,8 @@ foreach (var p in await client.GetParametersAsync("vulkan-optimizer"))
   including declared parameters, byte-identical to the server.
 - **API-key auth:** sends `Authorization: Bearer <key>`. For daily engine runs, use a key with
   `engine-runs:write` or `engine-runs:validate` and an `engineKeys` allowlist that includes your
-  `EngineKey`. Legacy `eng_...` tokens still work on these routes during migration.
+  `EngineKey`. Legacy `eng_...` tokens still work on these routes during migration. Extra headers
+  (e.g. Cloudflare Access service tokens) go in the `defaultHeaders` constructor argument.
 - **Idempotency:** re-submitting the same run returns the stored run with `Deduped = true`. Retrying after a
   network failure is always safe.
 - **Retries:** transient failures (5xx, network, timeout) are retried with exponential backoff

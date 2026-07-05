@@ -1,6 +1,3 @@
-using System.Net;
-using System.Net.Http.Headers;
-using System.Text;
 using Auspicia.Engine;
 using Xunit;
 
@@ -11,7 +8,7 @@ public class XrayClientTests
     [Fact]
     public async Task BulkImport_returns_multistatus_with_item_errors()
     {
-        var handler = new FakeHandler(Response(207, """
+        var handler = new FakeHandler(FakeHandler.Response(207, """
         {
           "imported": [
             {
@@ -44,7 +41,7 @@ public class XrayClientTests
     [Fact]
     public async Task BulkImport_throws_typed_request_exception_on_413()
     {
-        var handler = new FakeHandler(Response(413, """{"detail":"Bulk ingest supports at most 250 portfolios per request."}"""));
+        var handler = new FakeHandler(FakeHandler.Response(413, """{"detail":"Bulk ingest supports at most 250 portfolios per request."}"""));
         using var client = Client(handler);
 
         var ex = await Assert.ThrowsAsync<XrayRequestException>(() => client.BulkImportAsync(new[]
@@ -61,8 +58,8 @@ public class XrayClientTests
     public async Task BulkImport_retries_503_then_succeeds()
     {
         var handler = new FakeHandler(
-            Response(503, """{"detail":"Database unavailable."}"""),
-            Response(201, """{"imported":[],"errors":[],"count":0,"failed":0}"""));
+            FakeHandler.Response(503, """{"detail":"Database unavailable."}"""),
+            FakeHandler.Response(201, """{"imported":[],"errors":[],"count":0,"failed":0}"""));
         using var client = Client(handler, maxRetries: 1);
 
         var result = await client.BulkImportAsync(new[]
@@ -78,7 +75,7 @@ public class XrayClientTests
     [Fact]
     public async Task BulkImport_sends_bearer_and_default_headers()
     {
-        var handler = new FakeHandler(Response(201, """{"imported":[],"errors":[],"count":0,"failed":0}"""));
+        var handler = new FakeHandler(FakeHandler.Response(201, """{"imported":[],"errors":[],"count":0,"failed":0}"""));
         using var client = Client(
             handler,
             bearerToken: "svc-token",
@@ -99,7 +96,7 @@ public class XrayClientTests
     [Fact]
     public async Task BulkImport_sends_top_level_target_org()
     {
-        var handler = new FakeHandler(Response(201, """{"imported":[],"errors":[],"count":0,"failed":0}"""));
+        var handler = new FakeHandler(FakeHandler.Response(201, """{"imported":[],"errors":[],"count":0,"failed":0}"""));
         using var client = Client(handler);
 
         await client.BulkImportAsync(
@@ -117,7 +114,7 @@ public class XrayClientTests
     [Fact]
     public async Task ListIngestionTargets_reads_allowed_orgs()
     {
-        var handler = new FakeHandler(Response(200, """
+        var handler = new FakeHandler(FakeHandler.Response(200, """
         {
           "orgs": [
             { "id": "auspicia", "displayName": "Auspicia", "status": "active", "role": "platform-admin" },
@@ -143,7 +140,7 @@ public class XrayClientTests
     [Fact]
     public async Task StartAnalysis_accepts_202()
     {
-        var handler = new FakeHandler(Response(202, """
+        var handler = new FakeHandler(FakeHandler.Response(202, """
         {
           "analysisId": "xray_analysis_1",
           "analysis": { "id": "xray_analysis_1", "portfolioId": "xray_1", "status": "queued", "stage": "queued" }
@@ -173,40 +170,4 @@ public class XrayClientTests
             maxRetries: maxRetries);
     }
 
-    private static HttpResponseMessage Response(int status, string json) =>
-        new((HttpStatusCode)status)
-        {
-            Content = new StringContent(json, Encoding.UTF8, "application/json"),
-        };
-
-    private sealed class FakeHandler : HttpMessageHandler
-    {
-        private readonly Queue<HttpResponseMessage> _responses;
-
-        public FakeHandler(params HttpResponseMessage[] responses) => _responses = new Queue<HttpResponseMessage>(responses);
-
-        public List<RequestCapture> Requests { get; } = [];
-
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            Requests.Add(
-                new RequestCapture(
-                    request.Method.Method,
-                    request.RequestUri?.PathAndQuery.TrimStart('/') ?? "",
-                    request.Headers.Authorization,
-                    request.Headers.ToDictionary(kv => kv.Key, kv => kv.Value.ToList()),
-                    request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken)));
-
-            if (_responses.Count == 0)
-                throw new InvalidOperationException("No fake response queued.");
-            return _responses.Dequeue();
-        }
-    }
-
-    private sealed record RequestCapture(
-        string Method,
-        string Path,
-        AuthenticationHeaderValue? Authorization,
-        Dictionary<string, List<string>> Headers,
-        string Body);
 }
